@@ -1,0 +1,23 @@
+# Ruflo / Claude Code local tooling — kept on disk for local use,
+# not tracked in this repo.
+.claude/
+.claude-flow/
+.agents/
+.swarm/
+.devcontainer/
+.mcp.json
+ruvector.db
+dotnet/
+
+# Local secrets and runtime data
+.env
+.env.local
+.env.*.local
+
+# Module Federation PoC build artifacts (see scripts/build.sh)
+node_modules/
+src/host/dist/
+src/extensions/*/dist/
+src/backend/bin/
+src/backend/obj/
+src/backend/wwwroot/
