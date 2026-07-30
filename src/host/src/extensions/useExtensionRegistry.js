@@ -91,14 +91,48 @@ function connectToChangeStream() {
   // to wire up here for this PoC.
 }
 
+let initialized = false
+
 /**
- * Initializes (once) and returns the read-only extension registry state.
+ * Fetches the manifest and registers every currently-known extension's
+ * route, then starts the SSE subscription. Callers (main.js) MUST await
+ * this — and must call it before `app.use(router)` installs the router —
+ * so that every dynamic route already exists by the time vue-router
+ * resolves the page's initial URL.
+ *
+ * Getting this ordering wrong is why a hard refresh (or a direct link) to
+ * e.g. /ext/extension-a used to land on the "Extension unavailable"
+ * catch-all: router.addRoute() only affects *future* navigations, and
+ * vue-router's very first navigation — to whatever URL the page loaded
+ * with — starts as soon as the router is installed. If that happens before
+ * this function's fetch has resolved, the initial navigation resolves
+ * against an incomplete route table and never gets a second chance, even
+ * after the route shows up moments later; the user had to manually
+ * re-navigate (e.g. click the sidebar link) to trigger a *new* navigation
+ * that finds it. Found via a direct-navigation test, not by inspection —
+ * everything still "worked" as long as you only ever arrived at extension
+ * routes by clicking a nav link after the app had already booted.
+ * @param {import('vue-router').Router} activeRouter
+ * @returns {Promise<void>}
+ */
+export function initExtensionRegistry(activeRouter) {
+  if (initialized) return Promise.resolve()
+  initialized = true
+  router = activeRouter
+  return reconcile().then(connectToChangeStream)
+}
+
+/**
+ * Returns the read-only extension registry state. Assumes
+ * initExtensionRegistry() has already been called (and awaited) — see
+ * main.js — but calls it defensively if not, so this still degrades
+ * gracefully (just without the ordering guarantee above) rather than
+ * throwing if used some other way.
  * @param {import('vue-router').Router} activeRouter
  */
 export function useExtensionRegistry(activeRouter) {
-  if (!router) {
-    router = activeRouter
-    reconcile().then(connectToChangeStream)
+  if (!initialized) {
+    initExtensionRegistry(activeRouter)
   }
   return readonly(state)
 }

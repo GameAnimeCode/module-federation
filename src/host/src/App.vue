@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router'
 import { useExtensionRegistry } from './extensions/useExtensionRegistry.js'
 
 const router = useRouter()
-// Kicks off the initial GET /api/extensions fetch + SSE subscription the
-// first time the host mounts. See useExtensionRegistry.js for the full
-// load/hot-add/hot-remove lifecycle.
+// By the time this component mounts, main.js has already awaited
+// initExtensionRegistry() and only then installed the router — this call
+// just reads the resulting reactive state. See useExtensionRegistry.js for
+// the full load/hot-add/hot-remove lifecycle and why that ordering in
+// main.js matters.
 const registry = useExtensionRegistry(router)
 
 // Every loaded extension's descriptor carries a `useStore` composable (see
