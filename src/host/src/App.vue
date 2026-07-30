@@ -47,6 +47,11 @@ const extensionStates = computed(() =>
         class="nav-link"
       >
         {{ ext.label }}
+        <!-- Branch hmr/latest-vite-federation: this extension was actually
+             loaded FROM its dev server (see loadExtensions.js) — not just
+             discovered like on hmr/dev-federation. The current page reflects
+             whatever was last saved; refresh after editing to see updates. -->
+        <span v-if="ext._devUrl" class="dev-badge" :title="`Loaded from dev server at ${ext._devUrl}`">dev</span>
       </router-link>
 
       <section v-if="extensionStates.length > 0" class="state-panel">
@@ -97,6 +102,18 @@ const extensionStates = computed(() =>
 .nav-link.router-link-active {
   background: #334155;
   color: white;
+}
+
+.dev-badge {
+  margin-left: 0.4rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #1e293b;
+  background: #7dd3fc;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  vertical-align: middle;
 }
 
 .status {

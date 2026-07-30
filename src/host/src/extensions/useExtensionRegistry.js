@@ -25,9 +25,9 @@ async function fetchManifest() {
   return response.json()
 }
 
-function addExtension(manifestName, descriptor) {
-  loadedManifestNames.add(manifestName)
-  state.extensions.push({ ...descriptor, _manifestName: manifestName })
+function addExtension(entry, descriptor) {
+  loadedManifestNames.add(entry.name)
+  state.extensions.push({ ...descriptor, _manifestName: entry.name, _devUrl: entry.devUrl ?? null })
   router.addRoute({
     path: descriptor.routePath,
     name: descriptor.id,
@@ -71,7 +71,7 @@ async function reconcile() {
     if (loadedManifestNames.has(entry.name)) continue
     try {
       const descriptor = await loadExtension(entry)
-      addExtension(entry.name, descriptor)
+      addExtension(entry, descriptor)
     } catch (err) {
       // One bad extension shouldn't take down the whole host — log and move on.
       console.error(`[extensions] failed to load "${entry.name}":`, err)

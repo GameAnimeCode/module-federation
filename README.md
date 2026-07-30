@@ -39,6 +39,10 @@ src/
 scripts/
   build.sh                  builds host + both extensions, assembles wwwroot,
                              builds the backend
+  dev.sh                    (branch hmr/latest-vite-federation) backend +
+                             host dev server + both extensions each on their
+                             own `vite dev` server, self-registering with
+                             the backend
 ```
 
 Each extension is an independently buildable, independently deployable Vite
@@ -112,6 +116,16 @@ inferred from the code.
 
 ## A non-obvious Module Federation gotcha (and why the host has one hardcoded string)
 
+> **This is branch `hmr/latest-vite-federation`.** It replaces
+> `@originjs/vite-plugin-federation` with `@module-federation/vite` (and
+> upgrades to Vite 8, the actual latest) specifically to investigate whether
+> a different, actively-maintained plugin could achieve true dev-to-dev
+> HMR — see "Swapping the federation plugin" further down for what that
+> plugin swap actually required and what it did and didn't solve. This
+> section (the gotchas below) describes `master`'s plugin, not this
+> branch's; skip to "Swapping the federation plugin" for this branch's own
+> gotchas.
+
 `@originjs/vite-plugin-federation`'s dynamic-remote mechanism is: import
 `__federation_method_setRemote` / `__federation_method_getRemote` from the
 virtual module `'virtual:__federation__'` (see `loadExtensions.js`), then
@@ -142,6 +156,131 @@ output:
 Both are documented with inline comments at the point they matter
 (`host/vite.config.js`, `host/src/extensions/loadExtensions.js`).
 
+## Swapping the federation plugin: `@module-federation/vite`
+
+`master`'s `@originjs/vite-plugin-federation` is pinned to `vite@^5` and its
+dev-mode "expose"/"shared" plugins are empty stubs (see `hmr/dev-federation`'s
+notes) — it hasn't shipped a release past `1.4.1`. `@module-federation/vite`
+is the actively-maintained plugin from the Module Federation team itself,
+explicitly declares `peerDependencies: { vite: "^5 || ^6 || ^7 || ^8" }`, and
+its own `.d.ts` documents a `dev.remoteHmr` option with explicit Vue support.
+This branch upgrades host + both extensions to Vite 8.2.0 (the actual
+latest, not a compatibility-workaround pin) and swaps the plugin, to find
+out whether that changes the HMR answer from `hmr/dev-federation`.
+
+**What changed and worked immediately, verified in the production build:**
+
+- Vite 8 (Rolldown-based) works with this plugin with **no bundler
+  workaround** — none of the `__rf_placeholder__` class of bug from
+  `@originjs/vite-plugin-federation` shows up here.
+- The host has **zero static `remotes` config** — not even the one
+  `__unused_placeholder__` entry `master` needs. Fully dynamic loading goes
+  through the standalone `@module-federation/runtime` package
+  (`registerRemotes` + `loadRemote`, see `loadExtensions.js`), which needs
+  nothing declared in `vite.config.js` at all.
+- Pinia's cross-remote singleton sharing (see above) works identically —
+  verified with the same click-then-navigate-away test.
+
+**One real gotcha, found the same way as the `__rf_placeholder__` one — by
+running it, not reading the types**: `registerRemotes` defaults to
+`type: 'var'` (load `remoteEntry.js` as a classic script exposing a global),
+but every `remoteEntry.js` this project's Vite builds produce is a real ES
+module. Loading it as a classic script throws `Cannot use import statement
+outside a module` — the fix is passing `type: 'module'` explicitly on every
+registration (see `loadExtensions.js`).
+
+### The actual HMR investigation
+
+This is the part that mattered. Three findings, each verified directly
+rather than inferred from docs:
+
+**1. Dev-mode remote serving is real here — unlike `@originjs/vite-plugin-federation`.**
+`curl http://localhost:5174/remoteEntry.js` while `extension-a` runs
+`vite dev` (no build at all) returns a genuine, functional ES module: real
+`@module-federation/runtime` `init`/`loadRemote` wiring, plus an explicit
+comment-documented shim for `__VUE_HMR_RUNTIME__`. This is the mechanism
+`hmr/dev-federation` found completely absent in the older plugin
+(`devExposePlugin`/`devSharedPlugin` were empty stubs there).
+
+**2. The host's page opens separate HMR WebSocket connections to every
+remote's dev server, automatically.** With host + both extensions running
+`vite dev`, the browser console shows **three** independent
+`[vite] connecting... connected.` pairs on a single page load — one for the
+host's own dev server, one each for extension-a's and extension-b's. This
+is exactly the "multiple HMR client" capability a naive assumption (mine,
+in the earlier investigation) said would be the hard, unsolved part of true
+cross-remote dev HMR. It's solved, automatically, by this plugin.
+
+**3. Despite both of the above, editing a mounted extension's source does
+not visually update the host without a manual reload — and the reason is
+now precise, not "the feature doesn't exist."** Editing
+`extension-a/src/ExtensionApp.vue` while it was mounted in the host
+produced a real `[vite] hot updated: /src/ExtensionApp.vue` console line
+(proof the update genuinely arrived and Vue's own HMR handling ran) — but
+the DOM never changed, confirmed by watching for over 20 seconds, not a
+timing issue. Digging further:
+
+- `dev.remoteHmr`'s automatic patching is wired through the plugin's own
+  import-transform, which recognizes the **literal call-site shape**
+  `import('remoteName/exposedPath')` — the pattern in this plugin's own
+  docs (`defineAsyncComponent(() => import("remote/remote-app"))`).
+- Tried directly: `import('extension-a/Extension')` from host source threw
+  `Failed to resolve import "extension-a/Extension"` at the Vite dev-server
+  level — because that bare-specifier resolution requires the remote to be
+  **statically declared** in the host's `federation({ remotes: {...} })`
+  config, so the plugin's resolver knows about it at dev-server startup.
+- This project's host has **zero static remotes** by design — everything
+  goes through the runtime `registerRemotes`/`loadRemote` API instead, which
+  is invisible to that transform. `import.meta.hot.on('vite:afterUpdate', …)`
+  registered in the host's own component confirmed this directly: it never
+  fired for a remote's update, because that update is being handled entirely
+  inside the remote's own isolated HMR client instance, with no visible hook
+  back into host-side code for a dynamically-registered remote.
+
+**The conclusion this branch lands on**: `@module-federation/vite`'s
+automatic HMR is real and works well for the officially-documented usage —
+a host with statically-known remotes. It's fundamentally in tension with
+*this* project's core design goal (a host with zero build-time knowledge of
+any extension), not merely unimplemented for that case. A fully-dynamic
+host and zero-effort in-place HMR patching are, with this plugin's current
+API surface, mutually exclusive.
+
+### What this branch actually ships instead
+
+Given (3) above, this branch still gets a real, verified improvement over
+`master` — just not full live-patching:
+
+- Each extension's `vite.config.js` gained the same
+  `devServerRegistrationPlugin` as `hmr/dev-federation` (self-registers its
+  dev URL with the backend's `DevServerRegistry` on `vite dev` startup —
+  see backend `Program.cs`).
+- Unlike `hmr/dev-federation` (where this was display-only),
+  `loadExtensions.js` here actually **loads from the registered `devUrl`**
+  when one exists, via the same real `registerRemotes`/`loadRemote` API
+  used for production.
+- Net effect, verified: edit `extension-a/src/ExtensionApp.vue`, then just
+  refresh the host tab (or load `/ext/extension-a` fresh, no reload of
+  anything else needed) — the change is there immediately. **No build
+  step at all** — not even the `vite build --watch` `hmr/rebuild-and-swap`
+  needs — since the host is always fetching straight from the dev server's
+  live module graph. What you don't get is the page updating itself while
+  you're looking at it without that refresh.
+
+## Development on this branch (`hmr/latest-vite-federation`)
+
+```bash
+./scripts/build.sh   # at least once, so extensions have something built to fall back to
+./scripts/dev.sh
+```
+
+`dev.sh` starts, and cleans up together on Ctrl+C: the backend
+(`Development`, `:5080`), the host's own Vite dev server (`:5173`), and
+`extension-a` (`:5174`) / `extension-b` (`:5175`) each on their own
+`vite dev` server. Open `http://localhost:5173/` — extensions with a
+detected dev server show a `dev` badge in the sidebar (hover it for the
+URL). Edit an extension's source, then refresh the host tab (or navigate to
+its route fresh) to see the change — no rebuild needed.
+
 ## CORS
 
 - **Production** (after `scripts/build.sh`): the host, the API, and every
@@ -159,6 +298,15 @@ Both are documented with inline comments at the point they matter
   host benefits from its own dev server for UI iteration.
 
 ## HMR: what actually works, verified empirically
+
+> **This is branch `hmr/latest-vite-federation`.** Points 1 and 2 below
+> (host's own HMR, an extension's own standalone HMR) are unaffected by the
+> plugin swap and still true here. Point 3 (an extension loaded into the
+> host) is superseded on this branch — see "Swapping the federation plugin"
+> above for the full investigation with a different, actively-maintained
+> plugin: still no full in-place patching, but for a much more precise
+> reason, plus a genuine "edit and refresh, zero build step" improvement
+> `master` doesn't have.
 
 Short answer: **the host has full HMR for its own code, and each extension
 has full HMR when run on its own dev server — but an extension loaded *into*

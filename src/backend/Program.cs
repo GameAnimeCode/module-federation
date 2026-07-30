@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
 // ---------------------------------------------------------------------------
@@ -10,6 +11,14 @@ using System.Threading.Channels;
 //   4. Expose GET /api/extensions/stream (SSE) — pushes a "refresh" event the
 //      moment an extension folder is added/removed, so the host can re-fetch
 //      the manifest instead of the user having to guess when to reload.
+//
+// Branch hmr/latest-vite-federation additionally exposes POST
+// /api/extensions/dev-register (Development only): an extension running
+// `vite dev` announces its own URL here, dynamically, instead of the host
+// ever hardcoding a port per extension. Unlike hmr/dev-federation (where
+// this was demonstration-only), the host on THIS branch actually loads from
+// a registered dev URL when one exists — see DevServerRegistry below and
+// README.md's HMR section for exactly what that does and doesn't achieve.
 // ---------------------------------------------------------------------------
 
 // wwwroot may not exist yet on a fresh checkout (it's populated by
@@ -46,12 +55,33 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton(_ => new ExtensionChangeBroadcaster(extensionsRootPath));
+builder.Services.AddSingleton<DevServerRegistry>();
 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseCors(DevClientsCorsPolicy);
+
+    // Lets an extension's own `vite dev` server announce "I'm running, here's
+    // my URL" instead of the host ever hardcoding a port per extension. The
+    // registering caller is each extension's vite.config.js (a Node-side
+    // plugin using Node's own fetch, not a browser), so this never goes
+    // through CORS — only the host's browser-side reads (GET /api/extensions,
+    // the SSE stream) do.
+    app.MapPost("/api/extensions/dev-register", (DevRegistration registration, DevServerRegistry registry, ExtensionChangeBroadcaster broadcaster) =>
+    {
+        registry.Register(registration.Name, registration.DevUrl);
+        broadcaster.NotifyChanged();
+        return Results.NoContent();
+    });
+
+    app.MapDelete("/api/extensions/dev-register/{name}", (string name, DevServerRegistry registry, ExtensionChangeBroadcaster broadcaster) =>
+    {
+        registry.Unregister(name);
+        broadcaster.NotifyChanged();
+        return Results.NoContent();
+    });
 }
 
 // Serves index.html for "/" and every static asset (host bundle + extension
@@ -63,23 +93,33 @@ app.UseStaticFiles();
 // time. Instead it asks this endpoint "what's out there right now?" and gets
 // back a URL per extension. Adding a new folder under wwwroot/apps/extensions
 // makes it discoverable with zero backend code changes.
-app.MapGet("/api/extensions", () =>
+//
+// DevUrl (branch hmr/latest-vite-federation) comes from DevServerRegistry —
+// self-registered by an extension's own `vite dev` server. When present,
+// the host prefers loading from it over the built EntryUrl (see
+// loadExtensions.js), so editing an extension and refreshing the host shows
+// the change immediately with no build step at all.
+app.MapGet("/api/extensions", (DevServerRegistry devRegistry) =>
 {
-    if (!Directory.Exists(extensionsRootPath))
-    {
-        return Results.Ok(Array.Empty<ExtensionManifestEntry>());
-    }
+    var builtNames = Directory.Exists(extensionsRootPath)
+        ? Directory.GetDirectories(extensionsRootPath)
+            .Select(dir => new { Name = Path.GetFileName(dir), RemoteEntryFile = Path.Combine(dir, "remoteEntry.js") })
+            .Where(x => File.Exists(x.RemoteEntryFile))
+            .Select(x => x.Name)
+        : Enumerable.Empty<string>();
 
-    var entries = Directory.GetDirectories(extensionsRootPath)
-        .Select(dir => new
-        {
-            Name = Path.GetFileName(dir),
-            RemoteEntryFile = Path.Combine(dir, "remoteEntry.js"),
-        })
-        .Where(x => File.Exists(x.RemoteEntryFile))
-        .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-        .Select(x => new ExtensionManifestEntry(x.Name, $"/apps/extensions/{x.Name}/remoteEntry.js"))
-        .ToArray();
+    var allNames = builtNames
+        .Concat(devRegistry.RegisteredNames())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(name => name, StringComparer.OrdinalIgnoreCase);
+
+    var entries = allNames.Select(name =>
+    {
+        var remoteEntryFile = Path.Combine(extensionsRootPath, name, "remoteEntry.js");
+        var entryUrl = File.Exists(remoteEntryFile) ? $"/apps/extensions/{name}/remoteEntry.js" : null;
+        var devUrl = devRegistry.TryGet(name, out var url) ? url : null;
+        return new ExtensionManifestEntry(name, entryUrl, devUrl);
+    }).ToArray();
 
     return Results.Ok(entries);
 });
@@ -179,6 +219,9 @@ sealed class ExtensionChangeBroadcaster : IDisposable
         _debounce.Start();
     }
 
+    /// <summary>Lets a caller other than the FileSystemWatcher (dev-register) trigger the same debounced notification.</summary>
+    public void NotifyChanged() => Restart();
+
     public void Dispose()
     {
         _watcher.Dispose();
@@ -186,4 +229,26 @@ sealed class ExtensionChangeBroadcaster : IDisposable
     }
 }
 
-record ExtensionManifestEntry(string Name, string EntryUrl);
+/// <summary>
+/// In-memory registry of extensions currently running their own `vite dev`
+/// server, keyed by name. Populated entirely by self-registration (POST
+/// /api/extensions/dev-register) — the backend never guesses ports or scans
+/// for dev servers. Deliberately not persisted: a backend restart should not
+/// resurrect a claim about a dev server that may no longer be running.
+/// </summary>
+sealed class DevServerRegistry
+{
+    private readonly ConcurrentDictionary<string, string> _devUrlsByName = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Register(string name, string devUrl) => _devUrlsByName[name] = devUrl;
+
+    public void Unregister(string name) => _devUrlsByName.TryRemove(name, out _);
+
+    public bool TryGet(string name, out string devUrl) => _devUrlsByName.TryGetValue(name, out devUrl!);
+
+    public IEnumerable<string> RegisteredNames() => _devUrlsByName.Keys;
+}
+
+record DevRegistration(string Name, string DevUrl);
+
+record ExtensionManifestEntry(string Name, string? EntryUrl, string? DevUrl);

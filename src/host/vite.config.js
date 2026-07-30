@@ -1,37 +1,33 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import federation from '@originjs/vite-plugin-federation'
+import { federation } from '@module-federation/vite'
 
-// The host is configured as a Module Federation *consumer* with zero
-// statically declared `remotes`. That's the crux of "dynamic" federation:
-// a normal federated host hardcodes `remotes: { extensionA: 'http://...' }`
-// at build time, which means adding a new extension requires rebuilding the
-// host. Declaring the federation plugin at all — even with no static
-// remotes — is enough for it to inject the runtime helpers
-// (`__federation_method_setRemote` / `__federation_method_getRemote`) that
-// src/extensions/loadExtensions.js uses to register and import remotes by
-// URL *after* the app has already booted, once it learns their URLs from
-// GET /api/extensions.
+// Branch hmr/latest-vite-federation: swaps @originjs/vite-plugin-federation
+// (which pinned this project to Vite 5 — see README.md's HMR section) for
+// @module-federation/vite, the actively-maintained plugin from the Module
+// Federation team, which explicitly supports Vite 8. Two changes from the
+// other branches' host config worth calling out:
+//
+// 1. No `remotes` entry at all — not even an empty/placeholder one. This
+//    plugin's own `remotes` option is purely for statically-known remotes;
+//    fully-dynamic loading goes through the standalone `@module-federation/runtime`
+//    package instead (`registerRemotes` + `loadRemote`, see
+//    src/extensions/loadExtensions.js), which doesn't require anything
+//    declared here at all. No @originjs-style "must have at least one
+//    entry or a silent internal check fails" workaround needed.
+// 2. `dev.remoteHmr: true` — this is the whole point of this branch. It's a
+//    documented, first-class option (see this plugin's own .d.ts) with
+//    explicit Vue support: when a remote's code changes, the plugin clears
+//    the federation module cache and (for Vue) guards the host's
+//    `__VUE_HMR_RUNTIME__` so the remote's freshly-loaded module can be
+//    hot-swapped without a page reload. @originjs/vite-plugin-federation had
+//    no equivalent — its dev-mode "expose"/"shared" plugins were empty
+//    stubs (see README.md).
 export default defineConfig({
   plugins: [
     vue(),
     federation({
       name: 'host',
-      // A single unused placeholder entry is required here, not optional —
-      // this is the one hardcoded-looking line in an otherwise fully dynamic
-      // setup, and it exists purely to work around a quirk of
-      // @originjs/vite-plugin-federation's build: it only classifies this
-      // build as a federation "host" (and only then runs the code-generation
-      // pass that makes `virtual:__federation__` actually work — see
-      // loadExtensions.js) when `remotes` has at least one entry. An empty
-      // `{}` satisfies the plugin's "were remotes configured at all" check
-      // but fails its internal `remotes.length > 0` host-detection check,
-      // silently leaving the generated runtime broken. The URL below is
-      // never fetched — every real remote is registered at runtime via
-      // __federation_method_setRemote in loadExtensions.js instead.
-      remotes: {
-        __unused_placeholder__: 'https://unused.invalid/remoteEntry.js',
-      },
       shared: {
         // Both instantiated exactly once by the host; every extension that
         // declares them as shared (see extensions' vite.config.js) reuses
@@ -52,12 +48,12 @@ export default defineConfig({
         // exact same Pinia instance the host creates in main.js.
         pinia: { singleton: true },
       },
+      dev: {
+        remoteHmr: true,
+      },
+      dts: false, // plain JS project, no tsconfig — see extensions' vite.config.js
     }),
   ],
-  build: {
-    target: 'esnext', // federation's runtime relies on native dynamic import()
-    modulePreload: false, // avoids Vite injecting a preload polyfill that fights federation's own loading
-  },
   server: {
     port: 5173,
   },
