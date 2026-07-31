@@ -1,34 +1,12 @@
 using System.Threading.Channels;
 
-// ---------------------------------------------------------------------------
-// Backend responsibilities (see /README.md for the full architecture story):
-//   1. Serve the compiled Vue host app as static files from wwwroot/.
-//   2. Serve compiled extension bundles from wwwroot/apps/extensions/<name>/.
-//   3. Expose GET /api/extensions, a manifest the host polls/reads once to
-//      learn which remoteEntry.js files exist, without either side
-//      hardcoding the other's contents at build time.
-//   4. Expose GET /api/extensions/stream (SSE), pushing a "refresh" event
-//      the moment an extension folder is added/removed/changed, so the host
-//      doesn't have to guess when to reload.
-//
-// This project demos two ways an extension's code can reach the host (see
-// README.md for the full comparison):
-//   - Extension A is declarative: statically declared as a remote in the
-//     host's vite.config.js, loaded via a literal `import('extension-a/...')`
-//     call site. The backend still discovers it, but the host only needs
-//     this endpoint to know it exists for the sidebar.
-//   - Extension B is dynamic: discovered purely from this endpoint at
-//     runtime, loaded via the standalone @module-federation/runtime API.
-//     LastModifiedUnixMs on each entry lets the host tell an in-place edit
-//     (rebuilt via `vite build --watch`) apart from no change, and hot-swap
-//     the mounted component instead of only handling add/remove.
-// ---------------------------------------------------------------------------
+// Serves the compiled host and extension bundles, and exposes a discovery
+// API for extension B (README.md has the full architecture and the two
+// loading approaches this project compares).
 
-// wwwroot may not exist yet on a fresh checkout (it's populated by
-// scripts/build.sh). WebApplication resolves its WebRootFileProvider from
-// whatever is on disk when CreateBuilder() runs, so this directory must
-// exist before that call or static files stay broken even after the
-// folder shows up later.
+// wwwroot may not exist yet on a fresh checkout. WebApplication reads its
+// WebRootFileProvider from disk at CreateBuilder() time, so this must run
+// first or static files stay broken even after the folder appears later.
 var contentRootPath = Directory.GetCurrentDirectory();
 var webRootPath = Path.Combine(contentRootPath, "wwwroot");
 var extensionsRootPath = Path.Combine(webRootPath, "apps", "extensions");
@@ -36,13 +14,9 @@ Directory.CreateDirectory(extensionsRootPath);
 
 var builder = WebApplication.CreateBuilder(args);
 
-// During local development the Vue host runs on its own Vite dev server
-// (default http://localhost:5173), a different origin than this API
-// (http://localhost:5080). The browser enforces CORS for both the fetch()
-// manifest call and the EventSource SSE connection, so the known dev origins
-// are allowed explicitly. In production (scripts/build.sh) the host is
-// copied into this same wwwroot, so everything is same-origin and this
-// policy never runs.
+// Only needed in dev: the host's Vite server (:5173) is a different origin
+// than this API (:5080). Production copies the host into this wwwroot, so
+// everything is same-origin and this policy never runs.
 const string DevClientsCorsPolicy = "DevClients";
 var devOrigins = new[]
 {
@@ -66,16 +40,11 @@ if (app.Environment.IsDevelopment())
     app.UseCors(DevClientsCorsPolicy);
 }
 
-// Serves index.html for "/" and every static asset (host bundle + extension
-// bundles) that lives anywhere under wwwroot.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// Dynamic discovery: extension B is found purely through this endpoint. The
-// host never imports it by name at build time; it asks what's out there
-// right now and gets back a URL and mtime per extension. Adding a new
-// folder under wwwroot/apps/extensions makes it discoverable with zero
-// backend code changes.
+// Lists every built extension found under wwwroot/apps/extensions. The host
+// polls this instead of importing extension B by name at build time.
 app.MapGet("/api/extensions", () =>
 {
     if (!Directory.Exists(extensionsRootPath))
@@ -100,12 +69,8 @@ app.MapGet("/api/extensions", () =>
     return Results.Ok(entries);
 });
 
-// Server-Sent Events stream: pushes one "extensions-changed" event whenever
-// the FileSystemWatcher below observes a folder being added/removed/renamed
-// *or an existing file being rewritten* under wwwroot/apps/extensions,
-// debounced so a multi-file copy (or a `vite build --watch` rebuild) only
-// fires once. SSE (rather than polling) is a plain, dependency-free way to
-// get push notifications from a Minimal API without adding SignalR.
+// Pushes an "extensions-changed" event whenever the watcher below fires,
+// so the host knows to re-fetch the manifest instead of polling.
 app.MapGet("/api/extensions/stream", async (HttpContext ctx, ExtensionChangeBroadcaster broadcaster) =>
 {
     ctx.Response.Headers.ContentType = "text/event-stream";
@@ -152,10 +117,7 @@ app.MapGet("/api/extensions/stream", async (HttpContext ctx, ExtensionChangeBroa
     }
 });
 
-// SPA fallback: any non-file, non-/api GET (e.g. a client-side route like
-// /ext/extension-a or /ext/extension-b) resolves to the host's index.html so
-// vue-router can take over. Static files and the /api endpoints above are
-// matched first and short-circuit this.
+// SPA fallback so vue-router can handle client-side routes directly.
 app.MapFallbackToFile("index.html");
 
 app.Run();
@@ -172,10 +134,7 @@ sealed class ExtensionChangeBroadcaster : IDisposable
     {
         Directory.CreateDirectory(extensionsPath);
 
-        // 400ms debounce: a "copy a whole extension folder in" (or a
-        // `vite build --watch` rebuild, which touches several files) fires
-        // many raw filesystem events in quick succession; we only want to
-        // tell the frontend once things have settled.
+        // Debounced so a multi-file rebuild only fires one event.
         _debounce = new System.Timers.Timer(400) { AutoReset = false };
         _debounce.Elapsed += (_, _) => Changed?.Invoke();
 

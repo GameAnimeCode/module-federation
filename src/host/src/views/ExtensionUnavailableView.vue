@@ -1,11 +1,4 @@
-<!--
-  This is router.js's catch-all (`/:pathMatch(.*)*`) target. It exists
-  because router.removeRoute() (called from useExtensionRegistry.js when an
-  extension folder disappears) has no equivalent way to force a user who is
-  already sitting on that route to navigate elsewhere. The next time that
-  path is resolved, a fresh load or a follow-up navigation, vue-router falls
-  through to this instead of throwing or rendering nothing.
--->
+<!-- router.js's catch-all target for routes removed via router.removeRoute(). -->
 <template>
   <div>
     <h2>Extension unavailable</h2>

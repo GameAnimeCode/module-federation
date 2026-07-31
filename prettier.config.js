@@ -1,7 +1,5 @@
-// These are Prettier's own defaults, written out explicitly instead of an
-// empty config. Editors here were already producing double-quote/semicolon
-// output via format-on-save, so matching that avoids fighting anyone's
-// existing setup.
+// Prettier's own defaults, written out explicitly to match existing
+// editor output (format-on-save was already producing this style).
 export default {
   semi: true,
   singleQuote: false,

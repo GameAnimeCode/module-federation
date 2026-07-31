@@ -3,11 +3,7 @@ import pluginVue from "eslint-plugin-vue";
 import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
 
-// One flat config for the whole repo. Host, extension-a, and extension-b
-// share it instead of each carrying its own copy, even though each project
-// builds and runs independently (see each vite.config.js for why that part
-// stays duplicated). Linting doesn't need independent deployability, so one
-// shared config is less to keep in sync.
+// One shared flat config for the whole repo (host + both extensions).
 export default [
   {
     ignores: [
@@ -34,16 +30,12 @@ export default [
       },
     },
     rules: {
-      // Every top-level component in this project (App.vue, ExtensionApp.vue)
-      // is deliberately single-word by Vue SFC convention; multi-word
-      // enforcement exists to avoid clashing with native HTML elements, which
-      // isn't a real risk for files that are never used as custom elements.
+      // App.vue/ExtensionApp.vue are single-word by convention; not a risk here.
       "vue/multi-word-component-names": "off",
     },
   },
   {
-    // vite.config.js runs under Node during the build/dev server, not in a
-    // browser, so it needs Node globals (e.g. `process`) instead.
+    // vite.config.js runs under Node, not a browser.
     files: ["**/vite.config.js"],
     languageOptions: {
       globals: {
@@ -51,8 +43,6 @@ export default [
       },
     },
   },
-  // Must be last: turns off every core/plugin stylistic rule Prettier would
-  // otherwise disagree with, so ESLint and Prettier never fight over the
-  // same line.
+  // Must be last: disables stylistic rules Prettier already handles.
   eslintConfigPrettier,
 ];

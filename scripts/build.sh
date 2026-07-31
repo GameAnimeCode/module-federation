@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Compiles the host and both extensions, then assembles them into the
-# backend's wwwroot exactly the way it expects to find them at runtime:
-#   wwwroot/                          <- host's dist/*
-#   wwwroot/apps/extensions/<name>/   <- each extension's dist/*
-#
-# After this script runs, `dotnet run` from src/backend serves the whole
-# system from a single origin: no separate dev servers, no CORS involved.
+# Builds the host and both extensions, then assembles them into the
+# backend's wwwroot so `dotnet run` serves everything from one origin.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

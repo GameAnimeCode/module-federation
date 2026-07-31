@@ -6,39 +6,25 @@ import { declarativeExtensionAMetadata } from "./extensions/declarativeExtension
 
 const route = useRoute();
 const router = useRouter();
-// By the time this component mounts, main.js has already awaited
-// initExtensionRegistry() and installed the router. This call just reads
-// the resulting reactive state (extension B and anything else discovered
-// dynamically). See useExtensionRegistry.js for the full lifecycle.
-// Extension A (declarative) isn't in here at all, see below.
+// Reads extension B's reactive state; see useExtensionRegistry.js. Extension
+// A (declarative) isn't in here, see below.
 const registry = useExtensionRegistry(router);
 
-// Extension A's metadata (label + store hook) resolves once, asynchronously.
-// See declarativeExtensionA.js for why this is a separate fetch from the
-// component that actually gets rendered (router.js). `null` until then,
-// which the template treats the same as "not present yet".
+// Extension A's metadata resolves once, asynchronously (see
+// declarativeExtensionA.js). `null` until then.
 const declarativeExtension = ref(null);
 declarativeExtensionAMetadata.then((meta) => {
   declarativeExtension.value = meta;
 });
 
-// One combined list so the sidebar and state panel don't need two
-// near-identical templates: extension A first (declarative, always present
-// once resolved), then whatever extension B or future dynamic extensions
-// useExtensionRegistry.js has loaded.
+// One combined list so the sidebar and state panel don't need two templates.
 const allExtensions = computed(() =>
   [declarativeExtension.value, ...registry.extensions].filter(Boolean),
 );
 
-// When useExtensionRegistry.js hot-swaps extension B, it forces vue-router
-// to re-resolve the current route (see swapExtension()'s router.replace) so
-// <router-view> renders the freshly swapped component. Without that, the
-// underlying state updated correctly but the page silently kept rendering
-// the old component. Keying <router-view> on the active dynamic extension's
-// version is defense-in-depth on top of that: it guarantees a full remount
-// whenever the version changes. Extension A doesn't need this: router.js's
-// `component: () => import(...)` already re-resolves fresh on every
-// navigation, live-patched in place by dev.remoteHmr when it changes.
+// Forces a full remount when useExtensionRegistry.js hot-swaps extension B
+// (router.replace alone doesn't refresh an already-mounted <router-view>).
+// Extension A doesn't need this: its route re-resolves on every navigation.
 const routeViewKey = computed(() => {
   const active = registry.extensions.find(
     (ext) => ext.routePath === route.path,
@@ -46,11 +32,8 @@ const routeViewKey = computed(() => {
   return active ? `${active.id}:${active._lastModified}` : route.fullPath;
 });
 
-// Every extension's descriptor carries a `useStore` composable, attached to
-// the single Pinia instance created in main.js and shared across the
-// federation boundary. This computed only ever reads `store.summary`, never
-// an extension-specific field like `count` or `tasks`, so adding a third
-// extension with its own state shape needs no change here.
+// Reads `store.summary` only, never an extension-specific field, so a third
+// extension needs no change here.
 const extensionStates = computed(() =>
   allExtensions.value
     .filter((ext) => typeof ext.useStore === "function")
@@ -79,8 +62,7 @@ const extensionStates = computed(() =>
         class="nav-link"
       >
         {{ ext.label }}
-        <!-- Purely informational: shows which loading strategy is behind
-             each extension. See /README.md for the full comparison. -->
+        <!-- Shows which loading strategy is behind this extension. -->
         <span
           class="approach-badge"
           :class="

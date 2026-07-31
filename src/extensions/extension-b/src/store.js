@@ -1,8 +1,6 @@
 import { defineStore } from "pinia";
 
-// Same singleton-Pinia mechanism as extension-a/src/store.js. See that
-// file and vite.config.js's `shared.pinia` for why this works across the
-// federation boundary.
+// Same singleton-Pinia mechanism as extension-a/src/store.js.
 export const useExtensionBStore = defineStore("extension-b", {
   state: () => ({
     tasks: [
@@ -13,9 +11,7 @@ export const useExtensionBStore = defineStore("extension-b", {
   }),
   getters: {
     uncheckedCount: (state) => state.tasks.filter((task) => !task.done).length,
-    // Same contract as extension-a's `summary` getter: the host's status
-    // panel reads only this, never `tasks` directly, so it stays generic
-    // across whatever shape of state a given extension actually keeps.
+    // Same contract as extension-a's `summary` getter.
     summary() {
       return `${this.uncheckedCount} to-do${this.uncheckedCount === 1 ? "" : "s"}`;
     },

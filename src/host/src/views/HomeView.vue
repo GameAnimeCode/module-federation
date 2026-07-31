@@ -1,8 +1,4 @@
-<!--
-  Plain static view, deliberately: it's the one route that must always exist
-  regardless of which (if any) extensions the backend currently has, so it
-  can't depend on anything from useExtensionRegistry.js.
--->
+<!-- The one route that must always exist, so it can't depend on useExtensionRegistry.js. -->
 <template>
   <div>
     <h2>Welcome</h2>

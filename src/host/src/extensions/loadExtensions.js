@@ -1,15 +1,6 @@
-// This module is the one place that talks to the Module Federation runtime
-// directly for dynamically discovered extensions, i.e. extension B. It has
-// nothing to do with extension A, the declarative one (see router.js and
-// declarativeExtensionA.js), and covers the "no build-time knowledge"
-// loading mechanism the rest of this project is about.
-//
-// `registerRemotes`/`loadRemote` are a real, standalone runtime API from
-// `@module-federation/runtime`, usable the same way whether this code runs
-// from a `vite build` output or a `vite dev` server. The host's
-// `federation()` plugin call (vite.config.js) auto-injects the one-time
-// `init()` call for this runtime instance; we only ever call
-// registerRemotes/loadRemote.
+// Loads dynamically discovered extensions (extension B only) via the
+// standalone @module-federation/runtime API. Extension A is unrelated,
+// see declarativeExtensionA.js.
 import { registerRemotes, loadRemote } from "@module-federation/runtime";
 import { API_BASE_URL } from "../config.js";
 
@@ -17,32 +8,21 @@ import { API_BASE_URL } from "../config.js";
  * Registers one remote with the federation runtime by URL and imports its
  * exposed `./Extension` descriptor module.
  * @param {{ name: string, entryUrl: string }} manifestEntry - one entry from GET /api/extensions
- * @param {{ bust?: number | string }} [options] - pass a value that changes
- *   whenever the extension's underlying file changed (its manifest
- *   `lastModifiedUnixMs`) to force a fresh fetch and re-evaluation instead
- *   of getting the previously-loaded module back. See
- *   useExtensionRegistry.js's swapExtension().
+ * @param {{ bust?: number | string }} [options] - pass a changed value (e.g.
+ *   `lastModifiedUnixMs`) to force a fresh fetch instead of a cached module.
  * @returns {Promise<{ id: string, label: string, routePath: string, component: object }>}
  */
 export async function loadExtension(manifestEntry, { bust } = {}) {
   const absoluteEntryUrl = manifestEntry.entryUrl.startsWith("http")
     ? manifestEntry.entryUrl
     : `${API_BASE_URL}${manifestEntry.entryUrl}`;
-  // The federation runtime's internal caches, including the browser's
-  // import() cache, are keyed by the exact URL string. Re-registering the
-  // same remote name with an unchanged URL just returns the already-loaded
-  // module; appending a cache-busting query param makes a genuinely new URL
-  // so both the runtime and the browser actually re-fetch it.
+  // Cache-busting query param forces both the runtime and the browser to
+  // re-fetch instead of returning the already-loaded module.
   const url =
     bust === undefined ? absoluteEntryUrl : `${absoluteEntryUrl}?t=${bust}`;
 
-  // `force: true` lets a manifest entry we've already registered be
-  // re-registered instead of the runtime silently keeping the first
-  // registration. `type: 'module'` is required, not optional: the runtime's
-  // default is `type: 'var'` (load remoteEntry.js as a classic script
-  // exposing a global), but every remoteEntry.js this project's Vite builds
-  // produce is a real ES module, so loading it as a classic script throws
-  // "Cannot use import statement outside a module".
+  // `type: 'module'` is required: the runtime's default (`'var'`) loads
+  // remoteEntry.js as a classic script, but ours are real ES modules.
   registerRemotes(
     [
       {
@@ -54,13 +34,6 @@ export async function loadExtension(manifestEntry, { bust } = {}) {
     { force: true },
   );
 
-  // The `remoteName/exposedPath` id format mirrors webpack Module
-  // Federation's convention: `exposes: { './Extension': ... }` in the
-  // remote's vite.config.js is reached here as `extension-b/Extension`
-  // (leading `./` dropped).
   const remoteModule = await loadRemote(`${manifestEntry.name}/Extension`);
-
-  // Federation wraps a plain `export default {...}` as `{ default: {...} }`;
-  // callers only care about the descriptor itself.
   return remoteModule.default ?? remoteModule;
 }

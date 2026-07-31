@@ -1,9 +1,6 @@
 <script setup>
-// A second, deliberately different widget (list state instead of a counter)
-// to prove the host's loading logic and status panel are generic and don't
-// special-case what an extension's state looks like. See
-// extension-a/src/ExtensionApp.vue for why useExtensionBStore() reaches the
-// host's shared Pinia instance across the federation boundary.
+// A deliberately different widget (list state, not a counter), proving the
+// host's loading logic and status panel don't special-case extension state.
 import { useExtensionBStore } from "./store.js";
 
 const store = useExtensionBStore();
@@ -32,9 +29,7 @@ const store = useExtensionBStore();
 </template>
 
 <style scoped>
-/* `scoped` keeps this CSS from leaking onto the host page or other
-   extensions once injected into the host's document; remotes share the
-   DOM, so unscoped styles would collide. */
+/* scoped: remotes share the host's DOM, so unscoped styles would collide. */
 .extension-b {
   border: 1px solid #3178c6;
   border-radius: 8px;

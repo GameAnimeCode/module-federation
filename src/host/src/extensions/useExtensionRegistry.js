@@ -1,32 +1,13 @@
-// Reactive registry of dynamically discovered extensions, i.e. extension B,
-// kept in sync with the backend's GET /api/extensions manifest. Extension A
-// (the declarative one, see router.js and declarativeExtensionA.js) is
-// deliberately excluded: it already has a static route and doesn't need
-// discovering, loading, or swapping through this mechanism. Module-level
-// (not per-component) state is intentional: there is exactly one host app
-// instance per page, so a singleton registry avoids threading this through
-// provide/inject for a PoC of this size.
-//
-// Each manifest entry carries `lastModifiedUnixMs` (the remoteEntry.js
-// file's mtime). An already-loaded extension whose mtime has changed since
-// we loaded it gets re-imported (via a cache-busted URL, see
-// loadExtensions.js) and hot-swapped in place rather than ignored. Paired
-// with `npm run dev:watch` in extension-b (vite build --watch straight into
-// wwwroot/apps/extensions/), this is what makes "save extension B's file,
-// see it update in the running host" work without a host reload. See
-// README.md's HMR section for why this rebuild-and-swap approach was chosen
-// for this extension instead of the declarative one's live in-place patching.
+// Reactive registry of dynamically discovered extensions (extension B),
+// synced with the backend's GET /api/extensions manifest. Extension A is
+// excluded; it has a static route (see router.js) and doesn't need this.
+// Module-level state, since there's exactly one host instance per page.
 import { reactive, readonly } from "vue";
 import { API_BASE_URL } from "../config.js";
 import { loadExtension } from "./loadExtensions.js";
 
-// The backend's discovery scan finds every built extension, including
-// extension A: it has no reason to special-case anything, and its
-// "discoverable" property is still useful (the sidebar could show it from
-// here too). The host is what draws the line: names in this set are handled
-// declaratively elsewhere and must never be loaded or routed through this
-// dynamic path, or they'd fight the static route already registered for
-// them in router.js.
+// Names handled declaratively elsewhere; must be skipped here or they'd
+// fight the static route already registered in router.js.
 const DECLARATIVE_EXTENSION_NAMES = new Set(["extension-a"]);
 
 const state = reactive({
@@ -37,9 +18,7 @@ const state = reactive({
 
 let router = null;
 let eventSource = null;
-// manifest name -> lastModifiedUnixMs recorded at last successful load, so
-// reconcile() can tell "never seen" from "seen, but changed since" from
-// "seen, unchanged".
+// manifest name -> lastModifiedUnixMs at last successful load.
 const loadedVersions = new Map();
 
 async function fetchManifest() {
@@ -69,20 +48,12 @@ function addExtension(entry, descriptor) {
 function removeExtension(extension) {
   loadedVersions.delete(extension._manifestName);
   state.extensions = state.extensions.filter((entry) => entry !== extension);
-  // Module Federation has no supported "unload this remote" API, so the
-  // already-fetched JS stays cached in the tab. Dropping the vue-router
-  // route and sidebar entry is enough to make the extension unreachable: a
-  // stale deep link to it now resolves via the app's catch-all route (see
-  // router.js) instead of a router error.
+  // No "unload a remote" API exists; dropping the route is enough to make
+  // it unreachable (a stale deep link falls through to router.js's catch-all).
   router.removeRoute(extension.id);
 }
 
-/**
- * Re-imports an already-loaded extension whose underlying file changed and
- * replaces its descriptor fields in place (mutating the existing reactive
- * array entry, not removing + re-adding it, so App.vue's status panel and
- * sidebar link update reactively without flicker).
- */
+/** Re-imports a changed extension and mutates its descriptor in place (keeps reactivity, avoids flicker). */
 function swapExtension(existing, entry, descriptor) {
   loadedVersions.set(entry.name, entry.lastModifiedUnixMs);
   Object.assign(existing, descriptor, {
@@ -93,14 +64,8 @@ function swapExtension(existing, entry, descriptor) {
     name: descriptor.id,
     component: descriptor.component,
   });
-  // router.addRoute() only updates the route table used to resolve future
-  // navigations; it does not retroactively refresh the already-resolved
-  // `route.matched` that <router-view> is currently rendering from. If the
-  // user is sitting on this exact extension's route right now, a plain
-  // addRoute() call is invisible and the page keeps rendering the stale
-  // component. Re-resolving the current path in place (a same-URL
-  // router.replace) is what makes <router-view> pick up the freshly
-  // registered component.
+  // addRoute() doesn't refresh an already-resolved route.matched, so force
+  // a re-resolve if the user is currently on this extension's route.
   if (router.currentRoute.value.path === descriptor.routePath) {
     router.replace(router.currentRoute.value.fullPath);
   }
@@ -173,22 +138,10 @@ function connectToChangeStream() {
 let initialized = false;
 
 /**
- * Fetches the manifest and registers every currently-known dynamic
- * extension's route, then starts the SSE subscription. Callers (main.js)
- * must await this, and must call it before `app.use(router)` installs the
- * router, so every dynamic route already exists by the time vue-router
- * resolves the page's initial URL.
- *
- * Getting this ordering wrong is why a hard refresh or direct link to e.g.
- * /ext/extension-b used to land on the "Extension unavailable" catch-all:
- * router.addRoute() only affects future navigations, and vue-router's very
- * first navigation, to whatever URL the page loaded with, starts as soon as
- * the router is installed. If that happens before this function's fetch has
- * resolved, the initial navigation resolves against an incomplete route
- * table and never gets a second chance, even after the route shows up
- * moments later; the user had to manually re-navigate to trigger a new
- * navigation that finds it. Extension A's static route in router.js doesn't
- * have this problem, since it's never affected by this async registration.
+ * Fetches the manifest, registers every dynamic extension's route, then
+ * starts the SSE subscription. Callers must await this before
+ * `app.use(router)`, or the router's initial navigation can resolve against
+ * an incomplete route table (see main.js).
  * @param {import('vue-router').Router} activeRouter
  * @returns {Promise<void>}
  */
@@ -200,10 +153,8 @@ export function initExtensionRegistry(activeRouter) {
 }
 
 /**
- * Returns the read-only dynamic-extension registry state. Assumes
- * initExtensionRegistry() has already been called and awaited (see
- * main.js), but calls it defensively if not, degrading gracefully instead
- * of throwing if used some other way.
+ * Returns the read-only dynamic-extension registry state. Calls
+ * initExtensionRegistry() defensively if it hasn't run yet (see main.js).
  * @param {import('vue-router').Router} activeRouter
  */
 export function useExtensionRegistry(activeRouter) {

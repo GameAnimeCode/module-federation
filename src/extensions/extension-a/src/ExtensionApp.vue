@@ -1,10 +1,6 @@
 <script setup>
-// The real UI shipped inside the federated bundle. It's plain Vue with no
-// knowledge of the host's router, so it can be built and tested in complete
-// isolation and still slot into any host. State does cross the federation
-// boundary though: useExtensionAStore() attaches to the host's shared Pinia
-// instance (see vite.config.js), so the host's status panel reflects clicks
-// made here with no prop/event wiring between the two.
+// Plain Vue, no knowledge of the host's router. State still crosses the
+// federation boundary via the shared Pinia instance (see vite.config.js).
 import { useExtensionAStore } from "./store.js";
 
 const store = useExtensionAStore();
@@ -25,9 +21,7 @@ const store = useExtensionAStore();
 </template>
 
 <style scoped>
-/* `scoped` keeps this CSS from leaking onto the host page or other
-   extensions once injected into the host's document; remotes share the
-   DOM, so unscoped styles would collide. */
+/* scoped: remotes share the host's DOM, so unscoped styles would collide. */
 .extension-a {
   border: 1px solid #42b883;
   border-radius: 8px;

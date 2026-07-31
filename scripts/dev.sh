@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
-# Starts everything needed to develop against both demo extensions at once:
-#   - the backend in Development mode (:5080): discovery API, SSE watcher,
-#     CORS for the host's dev server
-#   - the host's own Vite dev server (:5173)
-#   - extension-a (:5174), the *declarative* extension, on its own `vite dev`
-#     server. The host's vite.config.js statically points at this port, and
-#     @module-federation/vite's dev.remoteHmr live-patches its mounted
-#     component in the host on every save, no refresh needed.
-#   - extension-b, the *dynamic* extension, in `vite build --watch` mode,
-#     writing straight into src/backend/wwwroot/apps/extensions/extension-b/.
-#     The backend's FileSystemWatcher + SSE tells the host to re-fetch the
-#     manifest; useExtensionRegistry.js notices the changed
-#     lastModifiedUnixMs and hot-swaps the mounted component (a full
-#     remount, invisible in practice since state lives in Pinia).
-#
-# See /README.md for the full comparison of the two approaches.
+# Starts the backend, host, and both extensions for local development.
+# See /README.md for how each extension's dev HMR works.
 # Ctrl+C stops every process this script started.
 set -euo pipefail
 

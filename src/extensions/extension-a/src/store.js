@@ -1,14 +1,8 @@
 import { defineStore } from "pinia";
 
-// Attaches to the single Pinia instance the host creates in its main.js;
-// see vite.config.js's `shared.pinia` for why that's what makes this work
-// across the federation boundary. The store id ('extension-a') must be
-// unique across every extension the host might load, same requirement as
-// the routePath in extension.js.
-//
-// `summary` exists so the host's status panel (see host/src/App.vue) can
-// display this extension's state without knowing its shape: it only ever
-// reads `store.summary`, never `store.count` directly.
+// Attaches to the host's shared Pinia instance (see vite.config.js).
+// `summary` lets the host's status panel read state generically, without
+// knowing this extension keeps a `count`.
 export const useExtensionAStore = defineStore("extension-a", {
   state: () => ({ count: 0 }),
   getters: {
