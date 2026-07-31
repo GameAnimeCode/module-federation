@@ -8,7 +8,7 @@ const store = useExtensionBStore();
 
 <template>
   <div class="extension-b">
-    <h2>Extension B: Task List Widget (MR)</h2>
+    <h2>Extension B: Task List Widget</h2>
     <p>
       Loaded from <code>extension-b</code>'s own <code>remoteEntry.js</code>,
       independently built and deployed from Extension A and the host.
@@ -29,12 +29,16 @@ const store = useExtensionBStore();
 </template>
 
 <style scoped>
-/* scoped: remotes share the host's DOM, so unscoped styles would collide. */
+/* scoped: remotes share the host's DOM, so unscoped styles would collide.
+   Colours come from the host's tokens through the cascade; the fallbacks keep
+   the standalone preview readable (see /docs/theming.md). */
 .extension-b {
-  border: 1px solid #3178c6;
+  border: 1px solid var(--color-border, #d8dee4);
+  border-left: 3px solid #3178c6;
   border-radius: 8px;
   padding: 1.25rem;
-  font-family: system-ui, sans-serif;
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #1f2328);
 }
 
 ul {
@@ -48,6 +52,6 @@ li {
 
 .done {
   text-decoration: line-through;
-  color: #888;
+  color: var(--color-text-muted, #59636e);
 }
 </style>

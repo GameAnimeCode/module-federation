@@ -7,7 +7,7 @@ import ExtensionApp from "./ExtensionApp.vue";
 
 <template>
   <div style="padding: 2rem; font-family: system-ui, sans-serif">
-    <p style="color: #888">
+    <p style="color: var(--color-text-muted, #59636e)">
       Standalone preview of Extension B (as loaded by the host):
     </p>
     <ExtensionApp />

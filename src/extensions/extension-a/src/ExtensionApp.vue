@@ -21,12 +21,16 @@ const store = useExtensionAStore();
 </template>
 
 <style scoped>
-/* scoped: remotes share the host's DOM, so unscoped styles would collide. */
+/* scoped: remotes share the host's DOM, so unscoped styles would collide.
+   Colours come from the host's tokens through the cascade; the fallbacks keep
+   the standalone preview readable (see /docs/theming.md). */
 .extension-a {
-  border: 1px solid #42b883;
+  border: 1px solid var(--color-border, #d8dee4);
+  border-left: 3px solid #42b883;
   border-radius: 8px;
   padding: 1.25rem;
-  font-family: system-ui, sans-serif;
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #1f2328);
 }
 
 button {
