@@ -69,6 +69,43 @@ and [`host/src/App.vue`](../src/host/src/App.vue). The count survives navigating
 away from the extension, because the state lives in the shared store rather
 than in the unmounted component.
 
+## Version negotiation, and what this repo leaves unset
+
+`singleton: true` answers "how many copies", not "which version". Those are
+separate questions, and the second one has knobs this project does not use.
+
+The plugin's `shared` entries accept more than a boolean:
+
+```js
+shared: {
+  pinia: {
+    singleton: true,
+    requiredVersion: "^4.0.0",  // what this build needs
+    strictVersion: true,        // fail loudly instead of proceeding
+    version: "4.0.2",           // what this build provides
+  },
+}
+```
+
+This repo declares only `{ singleton: true }`. Every version is therefore
+inferred from each project's own `package.json`, and **the host, extension A,
+and extension B each have their own `node_modules`**. They are three separate
+installs that happen to agree: all three currently resolve `vue` 3.5.40 and
+`pinia` 4.0.2. Nothing at build time enforces that agreement, and nothing would
+notice if a remote were rebuilt six months later against a newer minor.
+
+That is fine for a demo where one author builds all three from one commit. It
+is the wrong default for a platform, where remotes are built at different times
+by different teams. `requiredVersion` plus `strictVersion` is what converts an
+implicit assumption into a checked one.
+
+Two caveats on this section, stated plainly. The option names and shapes above
+come from the plugin's own type definitions. This project has never actually
+run a version mismatch, so treat the precise runtime behaviour on a conflict
+as something to verify against your own setup rather than something this repo
+demonstrates. The claim being made here is narrower: the knobs exist, this repo
+leaves them unset, and a real platform should not.
+
 ## Benefits
 
 - **Independent deploy cadence.** A remote ships on its own schedule. The host
@@ -104,9 +141,12 @@ These are real, and they are the reason Module Federation is not a default.
   different commits still makes bisecting harder.
 - **Operational surface grows.** Each remote becomes its own build, its own
   deployment, and its own set of cache headers and CORS rules, with a failure
-  mode to match. This repo's host wraps every load in a `try`/`catch` so one
-  broken remote cannot take down the shell
+  mode to match. This repo's host wraps every load in a `try`/`catch` so a remote that
+  fails to load cannot take down the shell
   ([`useExtensionRegistry.js`](../src/host/src/extensions/useExtensionRegistry.js)).
+  A remote that loads and then throws while rendering is a separate problem,
+  and this demo does not contain it (see
+  [the extension contract](./extension-contract.md#what-this-project-deliberately-does-not-do)).
 - **Tooling maturity varies.** The Vite ecosystem in particular has churned:
   see [How this project got here](#how-this-project-got-here) below.
 - **There is no sandbox.** A remote runs in the same realm with the host's full

@@ -11,14 +11,15 @@ in Module Federation validates any of this**. The failures below are all
 silent or misleading, which is what makes them worth writing down before the
 third extension exists rather than after.
 
-## The four contracts
+## The five contracts
 
-|              | Carried by                                                             | Enforced by |
-| ------------ | ---------------------------------------------------------------------- | ----------- |
-| **Module**   | `./Extension` exposing `{ id, label, routePath, component, useStore }` | Nothing     |
-| **Identity** | Folder name, federation `name`, `id`, `routePath`, store id            | Nothing     |
-| **State**    | A Pinia store exposing a `summary` getter                              | Nothing     |
-| **Styling**  | The host's `--color-*` custom properties                               | Nothing     |
+|                  | Carried by                                                             | Enforced by |
+| ---------------- | ---------------------------------------------------------------------- | ----------- |
+| **Module**       | `./Extension` exposing `{ id, label, routePath, component, useStore }` | Nothing     |
+| **Identity**     | Folder name, federation `name`, `id`, `routePath`, store id            | Nothing     |
+| **State**        | A Pinia store exposing a `summary` getter                              | Nothing     |
+| **Styling**      | The host's `--color-*` custom properties                               | Nothing     |
+| **Dependencies** | The `shared` singleton set, and the versions behind it                 | Nothing     |
 
 "Enforced by: nothing" is the whole point of this page. Module Federation
 resolves modules; it does not type-check them, validate their shape, or notice
@@ -113,6 +114,28 @@ Standardize three things a platform will otherwise get wrong:
 - **What the read surface is.** If `summary` grows into `summary`, `status`,
   and `badgeCount`, that is a versioned interface now. Treat it like one.
 
+## Dependency versions
+
+Declaring `vue`, `vue-router`, and `pinia` as singletons settles how many
+copies load. It does not settle _which version wins_, and this repo leaves that
+unspecified: the configs say `{ singleton: true }` and nothing more, so each
+build infers versions from its own `package.json`. The host and both extensions
+have separate `node_modules` that currently agree by coincidence of being
+installed from one commit.
+
+For a platform, standardize three things:
+
+- **A supported range per shared package**, expressed as `requiredVersion`, so
+  a remote states what it needs rather than assuming.
+- **Whether a mismatch is fatal**, via `strictVersion`. Silent version drift is
+  the failure mode described in [costs](./module-federation.md#costs), and this is
+  the switch that makes it loud.
+- **A compatibility policy for already-deployed remotes.** The host upgrades on
+  its own schedule; remotes built against the previous major stay deployed.
+  Decide whether the host supports N-1, and how it detects and refuses N-2.
+
+See [version negotiation](./module-federation.md#version-negotiation-and-what-this-repo-leaves-unset).
+
 ## Styling
 
 The host publishes semantic tokens; extensions consume them with fallbacks and
@@ -143,8 +166,37 @@ Called out so the demo is not mistaken for a template:
   is not a sandbox.
 - **No isolation between extensions.** They share a DOM, a router, and a Pinia
   instance. One extension can read and mutate another's store.
+- **No render-time error boundary.** The `try`/`catch` in
+  `useExtensionRegistry.js` covers loading. An extension that loads and then
+  throws while rendering is uncontained, and takes the view with it. A platform
+  wants `onErrorCaptured` around `<router-view>`, per extension.
+- **No `requiredVersion` or `strictVersion`** on any shared package.
 - **mtime as the version token.** Fine for a single server, wrong across a CDN
   or multiple instances.
+
+## Also worth standardizing, not shown here
+
+These do not arise with two first-party widgets, and all of them arise with ten
+from four teams:
+
+- **Asset base paths.** Images and fonts inside a remote resolve against the
+  remote's own base, not the host's. Get this wrong and assets 404 only in
+  production.
+- **Cross-cutting context.** Auth tokens, locale, feature flags, and tenant id
+  all need a defined channel. The theme answers this for styling; everything
+  else is undecided here.
+- **Route guards.** Whether an extension may register navigation guards, and
+  what happens when two disagree.
+- **Duplicate non-shared dependencies.** Anything outside `shared` ships once
+  per remote. Three remotes bundling their own date library is three copies on
+  the wire.
+- **Teardown.** Removing an extension drops its route, not its timers, event
+  listeners, or subscriptions. A long-lived session leaks them.
+- **Focus management.** Route changes between extensions should move focus for
+  keyboard and screen-reader users; nothing here does.
+- **Testing across the boundary.** Contract tests that assert a remote's
+  descriptor shape against the host's expectations, run in the remote's own CI,
+  catch these breaks before deployment rather than in a user's browser.
 
 ## Checklist for a platform team
 
@@ -155,5 +207,8 @@ Called out so the demo is not mistaken for a template:
 - [ ] A version field on the descriptor, and a host that enforces it
 - [ ] The singleton set identical across host and every remote
 - [ ] Token vocabulary versioned, removals treated as breaking
+- [ ] `requiredVersion` and `strictVersion` set on every shared package
+- [ ] A stated compatibility policy for remotes built against older hosts
 - [ ] Content-hashed or explicitly versioned remote entry files
-- [ ] A per-extension `try`/`catch` so one bad remote cannot take down the shell
+- [ ] A per-extension `try`/`catch` around loading, plus an error boundary
+      around rendering

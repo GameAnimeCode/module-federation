@@ -116,8 +116,9 @@ browser's own `import()` cache, are keyed by the exact URL string, and
 `remoteEntry.js` is **not** content-hashed the way the chunks it references
 are. Same URL, same cached module, no matter what changed on disk.
 
-A load failure is caught per extension and logged, so one bad remote cannot
-take down the host shell.
+A load failure is caught per extension and logged, so a remote that fails to
+load cannot take down the host shell. This covers loading only; a remote that
+loads and then throws during render is uncontained.
 
 ## The subtle part: `addRoute()` does not refresh what is rendered
 
