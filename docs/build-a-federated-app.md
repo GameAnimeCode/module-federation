@@ -313,6 +313,13 @@ loop on top, and changes nothing about production.
 needed there. Adding the name to `DECLARATIVE_EXTENSION_NAMES` is what stops
 the dynamic registry from also loading it in dev and fighting the static route.
 
+## Before a second team writes an extension
+
+The conventions above hold in this repo because one author wrote both
+extensions. Once extensions arrive from teams you do not control, the naming,
+store, and token contracts need enforcing, and the collision failure modes are
+silent. See [the extension contract](./extension-contract.md).
+
 ## Checklist for a new federated project
 
 - [ ] Descriptor contract designed before any config is written

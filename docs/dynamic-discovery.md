@@ -162,7 +162,9 @@ const extensionStates = computed(() =>
 ```
 
 A third dynamic extension with entirely different state needs no host change,
-as long as its store exposes a `summary` getter too.
+as long as its store exposes a `summary` getter too, and as long as its `id`,
+`routePath`, and store id collide with nothing already loaded. Nothing checks
+that second part; see [the extension contract](./extension-contract.md).
 
 ## Trade-offs of this design
 

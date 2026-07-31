@@ -166,5 +166,6 @@ is why the declarative path here is confined to the dev server. See
 - [The two approaches to HMR](./hmr-approaches.md), the trade-off this repo exists to show
 - [Dynamic discovery](./dynamic-discovery.md), loading remotes the host was never built against
 - [Theming](./theming.md), styling that crosses the boundary without federation
+- [The extension contract](./extension-contract.md), what to standardize before a second team joins
 - [Build a federated app](./build-a-federated-app.md), the step-by-step
 - [module-federation.io](https://module-federation.io/), upstream docs

@@ -120,6 +120,13 @@ Every extension exposes one module, `./Extension`, returning the same shape:
 That is the entire interface. It is what lets the host build a sidebar entry, a
 route, and a status line for an extension it knows nothing else about.
 
+Nothing validates that shape, and nothing stops two extensions claiming the
+same `id`, `routePath`, or Pinia store id. Those collisions fail silently or
+destructively, which is why a real platform has to standardize more than this
+demo does.
+
+**→ [The contracts, the collision failure modes, and what to standardize](./docs/extension-contract.md)**
+
 ---
 
 ## Two approaches to HMR
@@ -280,6 +287,7 @@ Extension A's dev loading bypasses the backend entirely, which is why its own
 | [Two approaches to HMR](./docs/hmr-approaches.md)        | Declarative vs dynamic in depth, gotchas, how to choose        |
 | [Dynamic discovery](./docs/dynamic-discovery.md)         | Manifest, SSE, reconcile, hot-swap, design trade-offs          |
 | [Theming](./docs/theming.md)                             | Light and dark themes, CSS tokens across the boundary          |
+| [The extension contract](./docs/extension-contract.md)   | What every extension must agree to, and how collisions fail    |
 | [Build a federated app](./docs/build-a-federated-app.md) | Step-by-step construction, adding a third extension, checklist |
 
 Diagrams in `docs/assets/` are SVGs with an embedded draw.io model. They render

@@ -121,7 +121,8 @@ neither reachable by keyboard nor announced as a choice.
 
 - **Tokens are a public API.** Once extensions depend on `--color-surface`,
   renaming it breaks bundles you may not rebuild. Version the vocabulary as
-  deliberately as the descriptor contract.
+  deliberately as the descriptor contract, and see
+  [the extension contract](./extension-contract.md).
 - **No enforcement.** Nothing stops an extension hardcoding `#fff`, and it will
   look broken in dark mode. The failure is visual and silent, which is the
   styling equivalent of the missing type checking described in
