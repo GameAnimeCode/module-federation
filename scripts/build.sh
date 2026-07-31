@@ -5,7 +5,7 @@
 #   wwwroot/apps/extensions/<name>/   <- each extension's dist/*
 #
 # After this script runs, `dotnet run` from src/backend serves the whole
-# system from a single origin — no separate dev servers, no CORS involved.
+# system from a single origin: no separate dev servers, no CORS involved.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -6,8 +6,8 @@ src/backend/wwwroot/
 package-lock.json
 *.db
 
-# AI-tooling scaffolding and other files being removed from git tracking
-# entirely (see .gitignore) — no point formatting what won't be committed.
+# Local tooling scaffolding and other files removed from git tracking
+# entirely (see .gitignore). No point formatting what won't be committed.
 .claude/
 .claude-flow/
 .agents/

@@ -1,24 +1,20 @@
 #!/usr/bin/env bash
-# Starts everything needed to develop against both of this project's demo
-# extensions at once:
-#   - the backend in Development mode (:5080) — discovery API, SSE watcher,
+# Starts everything needed to develop against both demo extensions at once:
+#   - the backend in Development mode (:5080): discovery API, SSE watcher,
 #     CORS for the host's dev server
 #   - the host's own Vite dev server (:5173)
-#   - extension-a (:5174) on its OWN `vite dev` server — the *declarative*
-#     extension. The host's vite.config.js statically points at this exact
-#     port, and @module-federation/vite's dev.remoteHmr live-patches its
-#     mounted component in the host on every save — no refresh needed.
-#   - extension-b in `vite build --watch` mode, writing straight into
-#     src/backend/wwwroot/apps/extensions/extension-b/ — the *dynamic*
-#     extension. The backend's existing FileSystemWatcher + SSE tells the
-#     host to re-fetch the manifest; useExtensionRegistry.js notices the
-#     changed lastModifiedUnixMs and hot-*swaps* the mounted component
-#     (full remount, not a patch — invisible in practice since its state
-#     lives in Pinia, not the component).
+#   - extension-a (:5174), the *declarative* extension, on its own `vite dev`
+#     server. The host's vite.config.js statically points at this port, and
+#     @module-federation/vite's dev.remoteHmr live-patches its mounted
+#     component in the host on every save, no refresh needed.
+#   - extension-b, the *dynamic* extension, in `vite build --watch` mode,
+#     writing straight into src/backend/wwwroot/apps/extensions/extension-b/.
+#     The backend's FileSystemWatcher + SSE tells the host to re-fetch the
+#     manifest; useExtensionRegistry.js notices the changed
+#     lastModifiedUnixMs and hot-swaps the mounted component (a full
+#     remount, invisible in practice since state lives in Pinia).
 #
-# See /README.md for the full comparison of the two approaches and why each
-# extension demos a different one.
-#
+# See /README.md for the full comparison of the two approaches.
 # Ctrl+C stops every process this script started.
 set -euo pipefail
 
@@ -53,11 +49,11 @@ dotnet build "$BACKEND_DIR" -c Debug
 pids+=("$!")
 sleep 2 # let it bind before extension-b's watch build starts touching wwwroot
 
-echo "==> extension-a (vite dev, declarative — the host connects to it directly)"
+echo "==> extension-a (vite dev, declarative; the host connects to it directly)"
 (cd "$EXTENSION_A_DIR" && npm run dev) &
 pids+=("$!")
 
-echo "==> extension-b (watch build -> wwwroot/apps/extensions/extension-b, dynamic — swapped in on change)"
+echo "==> extension-b (watch build -> wwwroot/apps/extensions/extension-b, dynamic; swapped in on change)"
 (cd "$EXTENSION_B_DIR" && npm run dev:watch) &
 pids+=("$!")
 

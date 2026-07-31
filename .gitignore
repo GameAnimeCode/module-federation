@@ -1,4 +1,4 @@
-# Ruflo / Claude Code local tooling — kept on disk for local use,
+# Local dev tooling scaffolding. Kept on disk for local use,
 # not tracked in this repo.
 .claude/
 .claude-flow/

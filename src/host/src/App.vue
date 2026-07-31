@@ -7,42 +7,38 @@ import { declarativeExtensionAMetadata } from "./extensions/declarativeExtension
 const route = useRoute();
 const router = useRouter();
 // By the time this component mounts, main.js has already awaited
-// initExtensionRegistry() and only then installed the router — this call
-// just reads the resulting reactive state (extension B and anything else
-// discovered dynamically). See useExtensionRegistry.js for the full
-// load/hot-add/hot-remove/hot-swap lifecycle and why that ordering in
-// main.js matters. Extension A (declarative) isn't in here at all — see
-// below.
+// initExtensionRegistry() and installed the router. This call just reads
+// the resulting reactive state (extension B and anything else discovered
+// dynamically). See useExtensionRegistry.js for the full lifecycle.
+// Extension A (declarative) isn't in here at all, see below.
 const registry = useExtensionRegistry(router);
 
-// Extension A's metadata (label + store hook) resolves once, asynchronously
-// — see declarativeExtensionA.js for why this is a *separate* fetch from
-// the component that actually gets rendered (router.js). `null` until then,
+// Extension A's metadata (label + store hook) resolves once, asynchronously.
+// See declarativeExtensionA.js for why this is a separate fetch from the
+// component that actually gets rendered (router.js). `null` until then,
 // which the template treats the same as "not present yet".
 const declarativeExtension = ref(null);
 declarativeExtensionAMetadata.then((meta) => {
   declarativeExtension.value = meta;
 });
 
-// One combined list so the sidebar and the state panel don't need two
-// near-identical templates — extension A (declarative, always present once
-// resolved) first, then whatever extension B / future dynamic extensions
+// One combined list so the sidebar and state panel don't need two
+// near-identical templates: extension A first (declarative, always present
+// once resolved), then whatever extension B or future dynamic extensions
 // useExtensionRegistry.js has loaded.
 const allExtensions = computed(() =>
   [declarativeExtension.value, ...registry.extensions].filter(Boolean),
 );
 
-// Branch note: when useExtensionRegistry.js hot-swaps extension B, it
-// forces vue-router to re-resolve the current route (see
-// swapExtension()'s router.replace) so <router-view> renders the freshly
-// swapped component — that's the actual fix for that path (found
-// empirically: the underlying state updated correctly without it, but the
-// page silently kept rendering the old component). Keying <router-view> on
-// the active dynamic extension's version on top of that is defense-in-depth:
-// it guarantees a full remount (not a patch) whenever the version changes.
-// Extension A doesn't need this at all — router.js's `component: () =>
-// import(...)` already re-resolves fresh on every navigation, live-patched
-// in place by @module-federation/vite's dev.remoteHmr when it changes.
+// When useExtensionRegistry.js hot-swaps extension B, it forces vue-router
+// to re-resolve the current route (see swapExtension()'s router.replace) so
+// <router-view> renders the freshly swapped component. Without that, the
+// underlying state updated correctly but the page silently kept rendering
+// the old component. Keying <router-view> on the active dynamic extension's
+// version is defense-in-depth on top of that: it guarantees a full remount
+// whenever the version changes. Extension A doesn't need this: router.js's
+// `component: () => import(...)` already re-resolves fresh on every
+// navigation, live-patched in place by dev.remoteHmr when it changes.
 const routeViewKey = computed(() => {
   const active = registry.extensions.find(
     (ext) => ext.routePath === route.path,
@@ -50,13 +46,10 @@ const routeViewKey = computed(() => {
   return active ? `${active.id}:${active._lastModified}` : route.fullPath;
 });
 
-// Every extension's descriptor carries a `useStore` composable (see
-// extension.js in each extension, and declarativeExtensionAMetadata for
-// extension A) attached to the single Pinia instance created in main.js and
-// shared across the federation boundary — calling it here reads live state
-// from whichever extension is or isn't currently mounted via router-view.
-// This computed only ever reads `store.summary`, never an
-// extension-specific field like `count` or `tasks`, so adding a third
+// Every extension's descriptor carries a `useStore` composable, attached to
+// the single Pinia instance created in main.js and shared across the
+// federation boundary. This computed only ever reads `store.summary`, never
+// an extension-specific field like `count` or `tasks`, so adding a third
 // extension with its own state shape needs no change here.
 const extensionStates = computed(() =>
   allExtensions.value
@@ -86,9 +79,8 @@ const extensionStates = computed(() =>
         class="nav-link"
       >
         {{ ext.label }}
-        <!-- Both extensions are always present once loaded; this badge is
-             purely informational, showing which loading strategy is behind
-             each one — see /README.md for the full comparison. -->
+        <!-- Purely informational: shows which loading strategy is behind
+             each extension. See /README.md for the full comparison. -->
         <span
           class="approach-badge"
           :class="

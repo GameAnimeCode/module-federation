@@ -3,11 +3,11 @@ import pluginVue from "eslint-plugin-vue";
 import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
 
-// One flat config for the whole repo — host, extension-a, extension-b all
-// share it rather than each carrying its own copy, even though each project
-// builds and runs independently (see each vite.config.js for why *that*
-// stays duplicated). Linting doesn't have the same "must be independently
-// deployable" constraint, so one shared config is less to keep in sync.
+// One flat config for the whole repo. Host, extension-a, and extension-b
+// share it instead of each carrying its own copy, even though each project
+// builds and runs independently (see each vite.config.js for why that part
+// stays duplicated). Linting doesn't need independent deployability, so one
+// shared config is less to keep in sync.
 export default [
   {
     ignores: [
@@ -42,8 +42,8 @@ export default [
     },
   },
   {
-    // vite.config.js runs under Node during the build/dev-server, not in a
-    // browser — it needs Node globals (e.g. `process`), not browser ones.
+    // vite.config.js runs under Node during the build/dev server, not in a
+    // browser, so it needs Node globals (e.g. `process`) instead.
     files: ["**/vite.config.js"],
     languageOptions: {
       globals: {

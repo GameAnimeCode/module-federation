@@ -4,34 +4,31 @@ using System.Threading.Channels;
 // Backend responsibilities (see /README.md for the full architecture story):
 //   1. Serve the compiled Vue host app as static files from wwwroot/.
 //   2. Serve compiled extension bundles from wwwroot/apps/extensions/<name>/.
-//   3. Expose GET /api/extensions — a manifest the host polls/reads once to
-//      learn which remoteEntry.js files exist, without either side hardcoding
-//      the other's contents at build time.
-//   4. Expose GET /api/extensions/stream (SSE) — pushes a "refresh" event the
-//      moment an extension folder is added/removed/changed, so the host can
-//      re-fetch the manifest instead of the user having to guess when to
-//      reload.
+//   3. Expose GET /api/extensions, a manifest the host polls/reads once to
+//      learn which remoteEntry.js files exist, without either side
+//      hardcoding the other's contents at build time.
+//   4. Expose GET /api/extensions/stream (SSE), pushing a "refresh" event
+//      the moment an extension folder is added/removed/changed, so the host
+//      doesn't have to guess when to reload.
 //
-// This project demos two different ways an extension's code can reach the
-// host — see README.md for the full comparison:
+// This project demos two ways an extension's code can reach the host (see
+// README.md for the full comparison):
 //   - Extension A is declarative: statically declared as a remote in the
 //     host's vite.config.js, loaded via a literal `import('extension-a/...')`
-//     call site. The backend still discovers it (nothing here special-cases
-//     it), but the host doesn't need this endpoint to find it — only to know
-//     it exists for the sidebar.
+//     call site. The backend still discovers it, but the host only needs
+//     this endpoint to know it exists for the sidebar.
 //   - Extension B is dynamic: discovered purely from this endpoint at
 //     runtime, loaded via the standalone @module-federation/runtime API.
-//     LastModifiedUnixMs on each entry is what lets the host tell an
-//     in-place edit (rebuilt via `vite build --watch`) apart from no change,
-//     and hot-swap the mounted component instead of only ever handling
-//     add/remove.
+//     LastModifiedUnixMs on each entry lets the host tell an in-place edit
+//     (rebuilt via `vite build --watch`) apart from no change, and hot-swap
+//     the mounted component instead of only handling add/remove.
 // ---------------------------------------------------------------------------
 
 // wwwroot may not exist yet on a fresh checkout (it's populated by
 // scripts/build.sh). WebApplication resolves its WebRootFileProvider from
-// whatever is on disk at the moment CreateBuilder() runs — if the directory
-// is missing then, static files stay broken even if the folder is created
-// later — so this must happen *before* WebApplication.CreateBuilder(args).
+// whatever is on disk when CreateBuilder() runs, so this directory must
+// exist before that call or static files stay broken even after the
+// folder shows up later.
 var contentRootPath = Directory.GetCurrentDirectory();
 var webRootPath = Path.Combine(contentRootPath, "wwwroot");
 var extensionsRootPath = Path.Combine(webRootPath, "apps", "extensions");
@@ -40,12 +37,12 @@ Directory.CreateDirectory(extensionsRootPath);
 var builder = WebApplication.CreateBuilder(args);
 
 // During local development the Vue host runs on its own Vite dev server
-// (default http://localhost:5173) which is a *different origin* than this
-// API (http://localhost:5080). The browser enforces CORS for both the fetch()
-// manifest call and the EventSource SSE connection, so we allow the known dev
-// origins explicitly. In the production layout (scripts/build.sh) the host
-// is copied into this same wwwroot, so everything is same-origin and CORS is
-// never exercised — this policy is a dev-only convenience.
+// (default http://localhost:5173), a different origin than this API
+// (http://localhost:5080). The browser enforces CORS for both the fetch()
+// manifest call and the EventSource SSE connection, so the known dev origins
+// are allowed explicitly. In production (scripts/build.sh) the host is
+// copied into this same wwwroot, so everything is same-origin and this
+// policy never runs.
 const string DevClientsCorsPolicy = "DevClients";
 var devOrigins = new[]
 {
@@ -74,10 +71,10 @@ if (app.Environment.IsDevelopment())
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// Dynamic discovery: extension B is found purely through this endpoint —
-// the host never imports it by name at build time. Instead it asks "what's
-// out there right now?" and gets back a URL + mtime per extension. Adding a
-// new folder under wwwroot/apps/extensions makes it discoverable with zero
+// Dynamic discovery: extension B is found purely through this endpoint. The
+// host never imports it by name at build time; it asks what's out there
+// right now and gets back a URL and mtime per extension. Adding a new
+// folder under wwwroot/apps/extensions makes it discoverable with zero
 // backend code changes.
 app.MapGet("/api/extensions", () =>
 {
@@ -147,7 +144,7 @@ app.MapGet("/api/extensions/stream", async (HttpContext ctx, ExtensionChangeBroa
     }
     catch (OperationCanceledException)
     {
-        // Client navigated away / closed the tab — not an error.
+        // Client navigated away or closed the tab, not an error.
     }
     finally
     {

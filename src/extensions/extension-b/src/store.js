@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-// Same singleton-Pinia mechanism as extension-a/src/store.js — see that
+// Same singleton-Pinia mechanism as extension-a/src/store.js. See that
 // file and vite.config.js's `shared.pinia` for why this works across the
 // federation boundary.
 export const useExtensionBStore = defineStore("extension-b", {

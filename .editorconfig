@@ -17,8 +17,8 @@ trim_trailing_whitespace = false
 [*.{yml,yaml,json}]
 indent_size = 2
 
-# C# code style — enforced by `dotnet format` / the Roslyn analyzers enabled
-# in src/backend/Backend.csproj.
+# C# code style, enforced by `dotnet format` and the Roslyn analyzers in
+# src/backend/Backend.csproj.
 [*.cs]
 csharp_new_line_before_open_brace = all
 csharp_prefer_braces = true:suggestion

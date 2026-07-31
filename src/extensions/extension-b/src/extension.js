@@ -1,7 +1,7 @@
 import ExtensionApp from "./ExtensionApp.vue";
 import { useExtensionBStore } from "./store.js";
 
-// Same descriptor contract as extension-a's extension.js — this is what
+// Same descriptor contract as extension-a's extension.js, which is what
 // makes the two extensions interchangeable from the host's point of view.
 export default {
   id: "extension-b",
