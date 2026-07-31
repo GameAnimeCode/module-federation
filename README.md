@@ -84,6 +84,8 @@ src/
                           aliases @declarative-extensions per build mode
     src/
       router.js           "/" plus any declarative routes, which is none in prod
+      components/
+        ExtensionBoundary.vue  contains a render-time throw from an extension
       extensions/
         declarativeExtensions.js       dev: extension A's route + metadata
         declarativeExtensions.prod.js  prod: the inert stub that replaces it
@@ -120,10 +122,11 @@ Every extension exposes one module, `./Extension`, returning the same shape:
 That is the entire interface. It is what lets the host build a sidebar entry, a
 route, and a status line for an extension it knows nothing else about.
 
-Nothing validates that shape, and nothing stops two extensions claiming the
-same `id`, `routePath`, or Pinia store id. Those collisions fail silently or
-destructively, which is why a real platform has to standardize more than this
-demo does.
+Nothing validates that shape. The host rejects an extension whose `id` or
+`routePath` is already taken, and contains a render-time throw so one bad
+extension cannot take the shell down, but a duplicate Pinia store id is
+invisible to it. Those are the kinds of conventions a real platform has to
+standardize and enforce before publish.
 
 **→ [The contracts, the collision failure modes, and what to standardize](./docs/extension-contract.md)**
 

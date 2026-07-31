@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useExtensionRegistry } from "./extensions/useExtensionRegistry.js";
 import { useThemeStore } from "./stores/theme.js";
+import ExtensionBoundary from "./components/ExtensionBoundary.vue";
 import { declarativeExtensionsMetadata } from "@declarative-extensions";
 
 const route = useRoute();
@@ -103,7 +104,9 @@ const extensionStates = computed(() =>
       </section>
     </nav>
     <main class="content">
-      <router-view :key="routeViewKey" />
+      <ExtensionBoundary>
+        <router-view :key="routeViewKey" />
+      </ExtensionBoundary>
     </main>
   </div>
 </template>

@@ -94,7 +94,10 @@ startup. `EventSource` retries dropped connections on its own.
 each entry into one of three cases, using `lastModifiedUnixMs` to tell
 "never seen" from "seen but rebuilt since" from "unchanged."
 
-**New.** Load it, add the route, add the sidebar entry.
+**New.** Load it, then check its `id` and `routePath` against the router
+before adding the route and the sidebar entry. A clash is logged and the
+extension skipped, rather than allowed to evict the incumbent's route (see
+[the extension contract](./extension-contract.md#identity-and-how-collisions-actually-fail)).
 
 **Gone.** Drop the sidebar entry and call `router.removeRoute(id)`. Module
 Federation has no supported "unload a remote" API, so the already-fetched JS
@@ -117,8 +120,9 @@ browser's own `import()` cache, are keyed by the exact URL string, and
 are. Same URL, same cached module, no matter what changed on disk.
 
 A load failure is caught per extension and logged, so a remote that fails to
-load cannot take down the host shell. This covers loading only; a remote that
-loads and then throws during render is uncontained.
+load cannot take down the host shell. Render-time failures are caught
+separately, by the boundary around `<router-view>` (see
+[containing a failing extension](./extension-contract.md#containing-a-failing-extension)).
 
 ## The subtle part: `addRoute()` does not refresh what is rendered
 

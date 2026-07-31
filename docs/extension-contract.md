@@ -82,12 +82,42 @@ change between deployments.
 first one always resolves. The second extension is loaded, listed in the
 sidebar, and unreachable.
 
-**What to standardize.** Pick one primary key, derive the rest, and reject
-duplicates at publish time rather than at load time. Namespacing store ids
-(`acme.billing` rather than `billing`) costs nothing and removes an entire
-class of these. The host can also refuse to register a second extension
-claiming a taken `id` or `routePath`, which turns a silent collision into a
-console error naming both parties.
+**What this host does about it.** `addExtension()` checks the incoming
+descriptor against the router before registering anything:
+
+```js
+if (router.hasRoute(descriptor.id)) return `route name "${descriptor.id}"`;
+if (router.getRoutes().some((r) => r.path === descriptor.routePath))
+  return `route path "${descriptor.routePath}"`;
+```
+
+A clash is logged and the extension is skipped rather than allowed to evict or
+shadow the incumbent. The router is the right thing to ask because it also
+knows about static routes, so this catches a dynamic extension colliding with a
+declarative one. The rejection is not recorded in `loadedVersions`, so removing
+the incumbent lets the skipped extension load on the next reconcile.
+
+**What it cannot do.** First-loaded wins, and load order is the backend's
+directory listing. Point two extensions at `extension-a` and the alphabetically
+earlier folder takes the identity while the real `extension-a` is skipped:
+
+```
+[extensions] skipped "extension-a": route name "extension-a" is already registered
+```
+
+That is a deliberate non-decision. Adjudicating who _should_ own an identity is
+a publish-time question, not something a host can answer at load time from two
+equally valid descriptors.
+
+**Store ids are still unguarded.** A store id lives inside the extension's
+`store.js`; the host only receives a `useStore` function. It could read
+`useStore().$id` after the fact, but by then a colliding call has already
+returned the incumbent's store. Verified with three extensions all declaring
+`defineStore("extension-b")`: toggling one task moved every summary in the
+sidebar at once, and no guard fired. Namespacing store ids (`acme.billing`
+rather than `billing`) costs nothing and removes the whole class. Real
+prevention belongs in a registry that rejects duplicates before a bundle
+ships.
 
 ## State
 
@@ -156,8 +186,8 @@ Called out so the demo is not mistaken for a template:
   in `useExtensionRegistry.js` catches and logs, so the shell survives and that
   one extension silently does not appear. A real platform should validate the
   descriptor and surface a specific error.
-- **No duplicate detection.** Nothing checks `id`, `routePath`, or store id
-  against what is already registered.
+- **No duplicate detection for store ids.** `id` and `routePath` are guarded
+  (see above); store ids are not, and cannot be from the host.
 - **No version negotiation beyond the packages in `shared`.** The descriptor
   contract itself carries no version field. Adding one, and having the host
   refuse incompatible majors, is the obvious next step for anything real.
@@ -166,13 +196,36 @@ Called out so the demo is not mistaken for a template:
   is not a sandbox.
 - **No isolation between extensions.** They share a DOM, a router, and a Pinia
   instance. One extension can read and mutate another's store.
-- **No render-time error boundary.** The `try`/`catch` in
-  `useExtensionRegistry.js` covers loading. An extension that loads and then
-  throws while rendering is uncontained, and takes the view with it. A platform
-  wants `onErrorCaptured` around `<router-view>`, per extension.
 - **No `requiredVersion` or `strictVersion`** on any shared package.
 - **mtime as the version token.** Fine for a single server, wrong across a CDN
   or multiple instances.
+
+## Containing a failing extension
+
+Loading and rendering fail in different places, and a `try`/`catch` around the
+load only covers the first.
+[`ExtensionBoundary.vue`](../src/host/src/components/ExtensionBoundary.vue)
+wraps `<router-view>` and covers the second:
+
+```js
+onErrorCaptured((error) => {
+  failure.value = error;
+  console.error("[extensions] render failed:", error);
+  return false; // stop propagation; the shell keeps running
+});
+```
+
+A throw in an extension's `setup()` now replaces that pane with a message and
+leaves the sidebar, theme control, and state panel working. Navigating to
+another extension clears it, which is why the boundary watches `route.fullPath`
+rather than latching.
+
+**What it does not catch.** `onErrorCaptured` sees render, lifecycle, and
+watcher errors from descendants. A throw inside an async event handler, or an
+unhandled promise rejection, escapes the synchronous call stack and reaches
+`window.onerror` instead. Treat the boundary as containment for the common
+case, not a sandbox. Genuine isolation needs a different boundary entirely, an
+iframe or a worker.
 
 ## Also worth standardizing, not shown here
 
@@ -202,7 +255,8 @@ from four teams:
 
 - [ ] One primary key per extension, everything else derived from it
 - [ ] Namespaced store ids
-- [ ] Duplicate `id`, `routePath`, and store id rejected before publish
+- [ ] Duplicate `id`, `routePath`, and store id rejected before publish, since
+      a host can only guard the first two
 - [ ] Descriptor shape validated at load, with a named error on failure
 - [ ] A version field on the descriptor, and a host that enforces it
 - [ ] The singleton set identical across host and every remote

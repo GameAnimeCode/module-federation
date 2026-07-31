@@ -32,7 +32,34 @@ async function fetchManifest() {
   return response.json();
 }
 
+/**
+ * Why the router and not `state.extensions`: it is the one place that knows
+ * about static routes too, so this also catches a dynamic extension colliding
+ * with a declarative one. Returns a description of the clash, or null.
+ */
+function routeConflict(descriptor) {
+  if (router.hasRoute(descriptor.id)) {
+    // addRoute() would silently evict the existing route with this name.
+    return `route name "${descriptor.id}"`;
+  }
+  if (router.getRoutes().some((route) => route.path === descriptor.routePath)) {
+    // Both would register, and the incumbent would always win the match.
+    return `route path "${descriptor.routePath}"`;
+  }
+  return null;
+}
+
 function addExtension(entry, descriptor) {
+  const conflict = routeConflict(descriptor);
+  if (conflict) {
+    // Deliberately not recorded in loadedVersions, so removing the incumbent
+    // lets this extension load on the next reconcile.
+    console.error(
+      `[extensions] skipped "${entry.name}": ${conflict} is already registered`,
+    );
+    return;
+  }
+
   loadedVersions.set(entry.name, entry.lastModifiedUnixMs);
   state.extensions.push({
     ...descriptor,

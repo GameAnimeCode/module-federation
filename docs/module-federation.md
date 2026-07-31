@@ -144,9 +144,9 @@ These are real, and they are the reason Module Federation is not a default.
   mode to match. This repo's host wraps every load in a `try`/`catch` so a remote that
   fails to load cannot take down the shell
   ([`useExtensionRegistry.js`](../src/host/src/extensions/useExtensionRegistry.js)).
-  A remote that loads and then throws while rendering is a separate problem,
-  and this demo does not contain it (see
-  [the extension contract](./extension-contract.md#what-this-project-deliberately-does-not-do)).
+  A remote that loads and then throws while rendering is caught separately, by
+  an error boundary around the router view (see
+  [the extension contract](./extension-contract.md#containing-a-failing-extension)).
 - **Tooling maturity varies.** The Vite ecosystem in particular has churned:
   see [How this project got here](#how-this-project-got-here) below.
 - **There is no sandbox.** A remote runs in the same realm with the host's full
