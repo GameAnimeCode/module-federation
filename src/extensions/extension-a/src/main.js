@@ -1,6 +1,6 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import App from "./App.vue";
 
 // Standalone entry point — only used when this extension is run on its own
 // dev server (`npm run dev`) for isolated development/preview. When the host
@@ -10,4 +10,4 @@ import App from './App.vue'
 // extension.js — in the federated path, the host is the only one that ever
 // calls createPinia(); this instance only exists so ExtensionApp.vue's
 // useExtensionAStore() has an active Pinia to attach to when previewed alone.
-createApp(App).use(createPinia()).mount('#app')
+createApp(App).use(createPinia()).mount("#app");

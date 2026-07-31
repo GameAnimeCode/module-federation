@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+import { defineStore } from "pinia";
 
 // Attaches to the single Pinia instance the host creates in its main.js —
 // see vite.config.js's `shared.pinia` for why that's what makes this work
@@ -9,14 +9,14 @@ import { defineStore } from 'pinia'
 // `summary` exists so the host's status panel (see host/src/App.vue) can
 // display this extension's state without knowing its shape — it only ever
 // reads `store.summary`, never `store.count` directly.
-export const useExtensionAStore = defineStore('extension-a', {
+export const useExtensionAStore = defineStore("extension-a", {
   state: () => ({ count: 0 }),
   getters: {
-    summary: (state) => `${state.count} click${state.count === 1 ? '' : 's'}`,
+    summary: (state) => `${state.count} click${state.count === 1 ? "" : "s"}`,
   },
   actions: {
     increment() {
-      this.count++
+      this.count++;
     },
   },
-})
+});

@@ -6,9 +6,9 @@
 // attaches to the host's shared Pinia instance (see vite.config.js), so the
 // host's status panel reflects clicks made here without any prop/event
 // wiring between the two.
-import { useExtensionAStore } from './store.js'
+import { useExtensionAStore } from "./store.js";
 
-const store = useExtensionAStore()
+const store = useExtensionAStore();
 </script>
 
 <template>
@@ -16,11 +16,12 @@ const store = useExtensionAStore()
     <h2>Extension A — Counter Widget</h2>
     <p>
       This entire component was compiled into
-      <code>extension-a</code>'s own <code>remoteEntry.js</code> and loaded
-      by the host at runtime — the host's source code never imports this
-      file.
+      <code>extension-a</code>'s own <code>remoteEntry.js</code> and loaded by
+      the host at runtime — the host's source code never imports this file.
     </p>
-    <button type="button" @click="store.increment()">Clicks: {{ store.count }}</button>
+    <button type="button" @click="store.increment()">
+      Clicks: {{ store.count }}
+    </button>
   </div>
 </template>
 

@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { federation } from '@module-federation/vite'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import { federation } from "@module-federation/vite";
 
 // This is the *declarative* extension in this project's side-by-side demo
 // of two ways an extension's code can reach the host — see /README.md for
@@ -25,14 +25,14 @@ export default defineConfig({
   plugins: [
     vue(),
     federation({
-      name: 'extension-a',
+      name: "extension-a",
       // The manifest entry file the backend's discovery scan looks for
       // (see backend Program.cs) — extension A is still discoverable there
       // too, purely so the host's sidebar can show it without special-casing
       // its metadata; the host's actual *loading* of extension A's code
       // never goes through that manifest, only through the static
       // declaration above.
-      filename: 'remoteEntry.js',
+      filename: "remoteEntry.js",
       exposes: {
         // Single expose: a small "extension descriptor" module (see
         // src/extension.js) rather than the raw .vue component directly —
@@ -41,7 +41,7 @@ export default defineConfig({
         // field is intentionally NOT what gets rendered — see that file for
         // why a *second*, separate `import()` is what actually gets patched
         // live.
-        './Extension': './src/extension.js',
+        "./Extension": "./src/extension.js",
       },
       shared: {
         // Loaded once by the host; this remote consumes the host's copy
@@ -65,6 +65,6 @@ export default defineConfig({
   server: {
     port: 5174, // fixed, not incidental — the host's static `remotes` entry points here in dev
     cors: true, // lets the host's browser tab fetch this origin's assets during isolated dev
-    origin: 'http://localhost:5174', // @module-federation/vite uses this to build absolute dev-mode remote URLs
+    origin: "http://localhost:5174", // @module-federation/vite uses this to build absolute dev-mode remote URLs
   },
-})
+});

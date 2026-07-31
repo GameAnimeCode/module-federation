@@ -1,6 +1,6 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from './views/HomeView.vue'
-import ExtensionUnavailableView from './views/ExtensionUnavailableView.vue'
+import { createRouter, createWebHistory } from "vue-router";
+import HomeView from "./views/HomeView.vue";
+import ExtensionUnavailableView from "./views/ExtensionUnavailableView.vue";
 
 // "/" and extension A's route are the only ones known up front — extension
 // B's route is added later at runtime by useExtensionRegistry.js via
@@ -11,10 +11,10 @@ import ExtensionUnavailableView from './views/ExtensionUnavailableView.vue'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'home', component: HomeView },
+    { path: "/", name: "home", component: HomeView },
     {
-      path: '/ext/extension-a',
-      name: 'extension-a',
+      path: "/ext/extension-a",
+      name: "extension-a",
       // Extension A is the *declarative* half of this project's two-approach
       // demo (see vite.config.js and declarativeExtensionA.js) — this literal
       // `import('extension-a/Extension')` call site, not a component object
@@ -25,8 +25,15 @@ export const router = createRouter({
       // one path never needed the "await extension discovery before
       // installing the router" fix in main.js — it exists in the route
       // table from t=0, same as "/".
-      component: () => import('extension-a/Extension').then((mod) => (mod.default ?? mod).component),
+      component: () =>
+        import("extension-a/Extension").then(
+          (mod) => (mod.default ?? mod).component,
+        ),
     },
-    { path: '/:pathMatch(.*)*', name: 'not-found', component: ExtensionUnavailableView },
+    {
+      path: "/:pathMatch(.*)*",
+      name: "not-found",
+      component: ExtensionUnavailableView,
+    },
   ],
-})
+});

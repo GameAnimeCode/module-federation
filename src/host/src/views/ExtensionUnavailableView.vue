@@ -11,8 +11,8 @@
     <h2>Extension unavailable</h2>
     <p>
       This page isn't a route the host currently knows about — either the
-      extension that used to expose it was removed from the server, or the
-      link was never valid.
+      extension that used to expose it was removed from the server, or the link
+      was never valid.
     </p>
     <router-link to="/">Back to Home</router-link>
   </div>

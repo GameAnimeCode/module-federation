@@ -1,5 +1,5 @@
-import ExtensionApp from './ExtensionApp.vue'
-import { useExtensionAStore } from './store.js'
+import ExtensionApp from "./ExtensionApp.vue";
+import { useExtensionAStore } from "./store.js";
 
 // The contract every extension exposes as its federated `./Extension`
 // module. The host imports this descriptor — not the raw .vue file — so it
@@ -10,9 +10,9 @@ import { useExtensionAStore } from './store.js'
 // `useStore().summary` — see host/src/App.vue — so the host never needs to
 // know this extension keeps a `count`, only that `summary` exists).
 export default {
-  id: 'extension-a',
-  label: 'Extension A',
-  routePath: '/ext/extension-a',
+  id: "extension-a",
+  label: "Extension A",
+  routePath: "/ext/extension-a",
   component: ExtensionApp,
   useStore: useExtensionAStore,
-}
+};

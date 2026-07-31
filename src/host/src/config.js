@@ -6,4 +6,4 @@
 // origin — so VITE_API_BASE_URL (see .env.development) points the dev host
 // at it. This is also exactly the CORS boundary the backend's DevClients
 // policy exists for (see backend/Program.cs).
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";

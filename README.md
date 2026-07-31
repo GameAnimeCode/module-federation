@@ -5,13 +5,13 @@ built "extensions" via Module Federation — and demonstrates, side by side,
 **two different ways an extension's code can reach the host**, with two very
 different trade-offs:
 
-| | Extension A | Extension B |
-|---|---|---|
-| **Approach** | Declarative (static remote) | Dynamic (runtime discovery) |
-| **Host knows about it at build time?** | Yes — named in `vite.config.js` | No — discovered from the backend at runtime |
-| **Live HMR while editing?** | **Yes**, verified: edits patch in place, zero reload | No — see "rebuild + swap" below |
-| **What happens when you edit + save (dev)** | Patches in place immediately | Rebuilds (`vite build --watch`), then the host detects the change and swaps the mounted component in — a few seconds, not instant, but no manual refresh needed either |
-| **Adding a new one requires** | A host code change (name it, add a route) | Nothing — drop a built folder in place |
+|                                             | Extension A                                          | Extension B                                                                                                                                                            |
+| ------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Approach**                                | Declarative (static remote)                          | Dynamic (runtime discovery)                                                                                                                                            |
+| **Host knows about it at build time?**      | Yes — named in `vite.config.js`                      | No — discovered from the backend at runtime                                                                                                                            |
+| **Live HMR while editing?**                 | **Yes**, verified: edits patch in place, zero reload | No — see "rebuild + swap" below                                                                                                                                        |
+| **What happens when you edit + save (dev)** | Patches in place immediately                         | Rebuilds (`vite build --watch`), then the host detects the change and swaps the mounted component in — a few seconds, not instant, but no manual refresh needed either |
+| **Adding a new one requires**               | A host code change (name it, add a route)            | Nothing — drop a built folder in place                                                                                                                                 |
 
 Neither approach is "better" — they're a real trade-off, verified empirically
 (not inferred from docs), and this project deliberately keeps both running so
@@ -66,7 +66,7 @@ scripts/
 
 Both extensions are independently buildable, independently deployable Vite
 projects — neither imports from the other, and neither imports from host
-source. The *host*, however, is asymmetric on purpose: it has zero
+source. The _host_, however, is asymmetric on purpose: it has zero
 build-time knowledge of extension B, and — deliberately, as the one
 exception in this whole project — real build-time knowledge of extension A.
 
@@ -83,7 +83,7 @@ This works because **Pinia is shared as a Module Federation singleton**,
 exactly like `vue` (`shared: { pinia: { singleton: true } }` in all three
 `vite.config.js` files). The host is the only place that calls
 `createPinia()` (`host/src/main.js`); every extension only calls
-`useXStore()`, which resolves the *host's* active Pinia instance rather than
+`useXStore()`, which resolves the _host's_ active Pinia instance rather than
 creating its own. Without the singleton share, each extension would bundle
 its own separate copy of the `pinia` package — a distinct module instance
 with its own internal injection `Symbol` — and `useXStore()` inside an
@@ -92,7 +92,7 @@ extension would fail with "no active Pinia".
 **The host stays generic where it can**: the status panel never reads
 `store.count` or `store.tasks` directly. Every store exposes a `summary`
 getter (a plain string), and the host only ever reads
-`ext.useStore().summary`. Adding a third *dynamic* extension with entirely
+`ext.useStore().summary`. Adding a third _dynamic_ extension with entirely
 different state requires no host changes as long as its store exposes a
 `summary` getter too.
 
@@ -111,7 +111,7 @@ component. This was verified with a headless-browser test.
    and returns `[{ name, entryUrl, lastModifiedUnixMs }, ...]`. Adding a new
    folder makes it discoverable with **zero backend code changes**.
 2. The host (`useExtensionRegistry.js`) fetches that manifest on startup,
-   and for each *new* entry calls `loadExtensions.js`, which:
+   and for each _new_ entry calls `loadExtensions.js`, which:
    - registers the remote's URL with `@module-federation/runtime`'s
      `registerRemotes()`
    - imports its exposed `./Extension` module via `loadRemote()`
@@ -130,7 +130,7 @@ component. This was verified with a headless-browser test.
    runtime's caches, including the browser's own `import()` cache, are
    keyed by exact URL string; `remoteEntry.js` isn't content-hashed like
    everything it references is) and mutates the existing descriptor in
-   place. **The subtle part**: `router.addRoute()` only affects *future*
+   place. **The subtle part**: `router.addRoute()` only affects _future_
    navigations — it does not retroactively refresh the `route.matched` that
    `<router-view>` is currently rendering from. If the user is sitting on
    that exact route, the swap is invisible without also forcing a same-URL
@@ -156,19 +156,20 @@ The host's `vite.config.js` statically declares extension A as a remote:
 
 ```js
 federation({
-  name: 'host',
+  name: "host",
   remotes: {
-    'extension-a': {
-      type: 'module',
-      name: 'extension-a',
-      entry: command === 'serve'
-        ? 'http://localhost:5174/remoteEntry.js'  // its own dev server
-        : '/apps/extensions/extension-a/remoteEntry.js', // built, same-origin
+    "extension-a": {
+      type: "module",
+      name: "extension-a",
+      entry:
+        command === "serve"
+          ? "http://localhost:5174/remoteEntry.js" // its own dev server
+          : "/apps/extensions/extension-a/remoteEntry.js", // built, same-origin
     },
   },
   dev: { remoteHmr: true },
   // ...
-})
+});
 ```
 
 `router.js` then loads it via a **literal** `import()` call site — the exact
@@ -195,18 +196,18 @@ proof it's a real in-place patch, not a disguised reload.
 declarative:
 
 - `declarativeExtensionA.js` (metadata: label, the Pinia store hook) has to
-  use the *same* literal `import('extension-a/Extension')` shape as
+  use the _same_ literal `import('extension-a/Extension')` shape as
   router.js — **not** the standalone `loadRemote()` function from
   `@module-federation/runtime`. Found the hard way: a `loadRemote()` runtime
   call is invisible to the plugin's static-analysis transform (it only sees
   literal `import(...)` expressions), so it looks up the literal string
-  `'extension-a'` — but the plugin registers a *statically declared* remote
+  `'extension-a'` — but the plugin registers a _statically declared_ remote
   under an internal prefixed alias
   (`__mfe_internal__host__mf_owner__1__extension-a` in the compiled output),
   not the plain name. Calling `loadRemote('extension-a/Extension')` throws
   `[ Federation Runtime ]: Failed to locate remote (#RUNTIME-004)`.
 - The host now hardcodes extension A's identity. Adding a fourth extension
-  the *declarative* way means editing `vite.config.js` and `router.js` —
+  the _declarative_ way means editing `vite.config.js` and `router.js` —
   the dynamic path (extension B's) is what stays truly zero-touch.
 
 **Why not use this for both extensions?** It's exactly the tension the
@@ -242,7 +243,7 @@ Two non-obvious things worth knowing if you're reading the source:
   Found by running it, not by reading the types.
 - **Re-registering an already-registered remote (extension B's swap) logs a
   benign console warning**: `The remote "extension-b" is already
-  registered. Please note that overriding it may cause unexpected errors.`
+registered. Please note that overriding it may cause unexpected errors.`
   It doesn't — `{ force: true }` is passed explicitly and the swap completes
   correctly regardless; this is just the runtime being cautious.
 

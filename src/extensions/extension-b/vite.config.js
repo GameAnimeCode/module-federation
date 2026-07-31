@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { federation } from '@module-federation/vite'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import { federation } from "@module-federation/vite";
 
 // This is the *dynamic* extension in this project's side-by-side demo of
 // two ways an extension's code can reach the host — see /README.md and
@@ -22,10 +22,10 @@ export default defineConfig({
   plugins: [
     vue(),
     federation({
-      name: 'extension-b',
-      filename: 'remoteEntry.js',
+      name: "extension-b",
+      filename: "remoteEntry.js",
       exposes: {
-        './Extension': './src/extension.js',
+        "./Extension": "./src/extension.js",
       },
       shared: {
         vue: { singleton: true },
@@ -39,6 +39,6 @@ export default defineConfig({
   server: {
     port: 5175, // fixed so it never collides with the host (5173) or extension-a (5174)
     cors: true,
-    origin: 'http://localhost:5175',
+    origin: "http://localhost:5175",
   },
-})
+});

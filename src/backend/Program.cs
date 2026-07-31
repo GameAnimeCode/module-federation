@@ -207,4 +207,4 @@ sealed class ExtensionChangeBroadcaster : IDisposable
     }
 }
 
-record ExtensionManifestEntry(string Name, string EntryUrl, long LastModifiedUnixMs);
+sealed record ExtensionManifestEntry(string Name, string EntryUrl, long LastModifiedUnixMs);

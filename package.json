@@ -1,0 +1,21 @@
+{
+  "name": "dynamic-vue-module-federation-demo",
+  "private": true,
+  "type": "module",
+  "description": "Root-level lint/format tooling for the whole repo (host, extension-a, extension-b). Each sub-project still has its own package.json for building/running itself.",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "vue-eslint-parser": "^10.4.1"
+  }
+}

@@ -1,0 +1,19 @@
+node_modules/
+dist/
+src/backend/bin/
+src/backend/obj/
+src/backend/wwwroot/
+package-lock.json
+*.db
+
+# AI-tooling scaffolding and other files being removed from git tracking
+# entirely (see .gitignore) — no point formatting what won't be committed.
+.claude/
+.claude-flow/
+.agents/
+.swarm/
+.devcontainer/
+.mcp.json
+CLAUDE.md
+mfe_instructions.md
+dotnet/

@@ -1,16 +1,16 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import App from './App.vue'
-import { router } from './router.js'
-import { initExtensionRegistry } from './extensions/useExtensionRegistry.js'
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import App from "./App.vue";
+import { router } from "./router.js";
+import { initExtensionRegistry } from "./extensions/useExtensionRegistry.js";
 
 async function bootstrap() {
-  const app = createApp(App)
+  const app = createApp(App);
   // The one and only Pinia instance for the whole app, shared with every
   // extension via Module Federation's `pinia` singleton (see
   // vite.config.js) — an extension's useXStore() call attaches to this
   // exact instance instead of throwing "no active Pinia".
-  app.use(createPinia())
+  app.use(createPinia());
 
   // Awaited *before* app.use(router): registers every currently-known
   // extension's route before the router performs its initial navigation
@@ -21,10 +21,10 @@ async function bootstrap() {
   // extension's route landed on the "Extension unavailable" catch-all until
   // the user manually navigated again. See useExtensionRegistry.js's
   // initExtensionRegistry() for the full explanation.
-  await initExtensionRegistry(router)
+  await initExtensionRegistry(router);
 
-  app.use(router)
-  app.mount('#app')
+  app.use(router);
+  app.mount("#app");
 }
 
-bootstrap()
+bootstrap();

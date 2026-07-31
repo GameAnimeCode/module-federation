@@ -4,14 +4,14 @@
 // generic and doesn't special-case what an extension's state looks like.
 // See extension-a/src/ExtensionApp.vue for why useExtensionBStore() reaches
 // the host's shared Pinia instance across the federation boundary.
-import { useExtensionBStore } from './store.js'
+import { useExtensionBStore } from "./store.js";
 
-const store = useExtensionBStore()
+const store = useExtensionBStore();
 </script>
 
 <template>
   <div class="extension-b">
-    <h2>Extension B — Task List Widget</h2>
+    <h2>Extension B — Task List Widget (MR)</h2>
     <p>
       Loaded from <code>extension-b</code>'s own <code>remoteEntry.js</code>,
       independently built and deployed from Extension A and the host.
@@ -19,7 +19,11 @@ const store = useExtensionBStore()
     <ul>
       <li v-for="task in store.tasks" :key="task.id">
         <label>
-          <input type="checkbox" :checked="task.done" @change="store.toggle(task.id)" />
+          <input
+            type="checkbox"
+            :checked="task.done"
+            @change="store.toggle(task.id)"
+          />
           <span :class="{ done: task.done }">{{ task.text }}</span>
         </label>
       </li>

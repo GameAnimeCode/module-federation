@@ -20,12 +20,13 @@
 // Extension B's loadExtensions.js is the opposite case: it's dynamic, has
 // no static declaration to rewrite against, so the standalone `loadRemote()`
 // call there is correct as-is.
-export const declarativeExtensionAMetadata = import('extension-a/Extension').then((mod) => {
-  const descriptor = mod.default ?? mod
-  return {
-    id: descriptor.id,
-    label: descriptor.label,
-    routePath: descriptor.routePath,
-    useStore: descriptor.useStore,
-  }
-})
+export const declarativeExtensionAMetadata =
+  import("extension-a/Extension").then((mod) => {
+    const descriptor = mod.default ?? mod;
+    return {
+      id: descriptor.id,
+      label: descriptor.label,
+      routePath: descriptor.routePath,
+      useStore: descriptor.useStore,
+    };
+  });

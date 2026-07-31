@@ -11,8 +11,8 @@
 // host's `federation()` plugin call (vite.config.js) auto-injects the
 // one-time `init()` call for this runtime instance; we only ever call
 // registerRemotes/loadRemote.
-import { registerRemotes, loadRemote } from '@module-federation/runtime'
-import { API_BASE_URL } from '../config.js'
+import { registerRemotes, loadRemote } from "@module-federation/runtime";
+import { API_BASE_URL } from "../config.js";
 
 /**
  * Registers one remote with the federation runtime by URL and imports its
@@ -26,16 +26,17 @@ import { API_BASE_URL } from '../config.js'
  * @returns {Promise<{ id: string, label: string, routePath: string, component: object }>}
  */
 export async function loadExtension(manifestEntry, { bust } = {}) {
-  const absoluteEntryUrl = manifestEntry.entryUrl.startsWith('http')
+  const absoluteEntryUrl = manifestEntry.entryUrl.startsWith("http")
     ? manifestEntry.entryUrl
-    : `${API_BASE_URL}${manifestEntry.entryUrl}`
+    : `${API_BASE_URL}${manifestEntry.entryUrl}`;
   // The federation runtime's internal caches (the browser's import() cache
   // included) are keyed by the exact URL string. Re-registering the same
   // remote name with an unchanged URL just returns the already-loaded
   // module; appending a cache-busting query param makes a genuinely new URL,
   // so both the runtime and the browser treat it as something to actually
   // (re-)fetch.
-  const url = bust === undefined ? absoluteEntryUrl : `${absoluteEntryUrl}?t=${bust}`
+  const url =
+    bust === undefined ? absoluteEntryUrl : `${absoluteEntryUrl}?t=${bust}`;
 
   // `force: true` lets a manifest entry we've already registered be
   // re-registered instead of the runtime silently keeping the first
@@ -51,19 +52,19 @@ export async function loadExtension(manifestEntry, { bust } = {}) {
       {
         name: manifestEntry.name,
         entry: url,
-        type: 'module',
+        type: "module",
       },
     ],
     { force: true },
-  )
+  );
 
   // The `remoteName/exposedPath` id format mirrors webpack Module
   // Federation's convention — `exposes: { './Extension': ... }` in the
   // remote's vite.config.js is reached here as `extension-b/Extension`
   // (leading `./` dropped).
-  const remoteModule = await loadRemote(`${manifestEntry.name}/Extension`)
+  const remoteModule = await loadRemote(`${manifestEntry.name}/Extension`);
 
   // Federation wraps a plain `export default {...}` as `{ default: {...} }`;
   // callers only care about the descriptor itself.
-  return remoteModule.default ?? remoteModule
+  return remoteModule.default ?? remoteModule;
 }

@@ -1,6 +1,6 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { federation } from '@module-federation/vite'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import { federation } from "@module-federation/vite";
 
 // This host demos two ways of loading a Module Federation extension side by
 // side — see /README.md for the full comparison:
@@ -33,15 +33,15 @@ export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
     federation({
-      name: 'host',
+      name: "host",
       remotes: {
-        'extension-a': {
-          type: 'module',
-          name: 'extension-a',
+        "extension-a": {
+          type: "module",
+          name: "extension-a",
           entry:
-            command === 'serve'
-              ? 'http://localhost:5174/remoteEntry.js'
-              : '/apps/extensions/extension-a/remoteEntry.js',
+            command === "serve"
+              ? "http://localhost:5174/remoteEntry.js"
+              : "/apps/extensions/extension-a/remoteEntry.js",
         },
       },
       shared: {
@@ -52,7 +52,7 @@ export default defineConfig(({ command }) => ({
         // the host/extension boundary; for vue-router it means an extension
         // could call useRouter() and get the host's actual router.
         vue: { singleton: true },
-        'vue-router': { singleton: true },
+        "vue-router": { singleton: true },
         // Same requirement as vue: Pinia's `useXStore()` composables resolve
         // the active Pinia instance via `inject(piniaSymbol)`, where
         // `piniaSymbol` is a plain module-scoped Symbol — not
@@ -73,4 +73,4 @@ export default defineConfig(({ command }) => ({
   server: {
     port: 5173,
   },
-}))
+}));

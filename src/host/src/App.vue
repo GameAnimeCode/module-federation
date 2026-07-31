@@ -1,11 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { useExtensionRegistry } from './extensions/useExtensionRegistry.js'
-import { declarativeExtensionAMetadata } from './extensions/declarativeExtensionA.js'
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { useExtensionRegistry } from "./extensions/useExtensionRegistry.js";
+import { declarativeExtensionAMetadata } from "./extensions/declarativeExtensionA.js";
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute();
+const router = useRouter();
 // By the time this component mounts, main.js has already awaited
 // initExtensionRegistry() and only then installed the router — this call
 // just reads the resulting reactive state (extension B and anything else
@@ -13,16 +13,16 @@ const router = useRouter()
 // load/hot-add/hot-remove/hot-swap lifecycle and why that ordering in
 // main.js matters. Extension A (declarative) isn't in here at all — see
 // below.
-const registry = useExtensionRegistry(router)
+const registry = useExtensionRegistry(router);
 
 // Extension A's metadata (label + store hook) resolves once, asynchronously
 // — see declarativeExtensionA.js for why this is a *separate* fetch from
 // the component that actually gets rendered (router.js). `null` until then,
 // which the template treats the same as "not present yet".
-const declarativeExtension = ref(null)
+const declarativeExtension = ref(null);
 declarativeExtensionAMetadata.then((meta) => {
-  declarativeExtension.value = meta
-})
+  declarativeExtension.value = meta;
+});
 
 // One combined list so the sidebar and the state panel don't need two
 // near-identical templates — extension A (declarative, always present once
@@ -30,7 +30,7 @@ declarativeExtensionAMetadata.then((meta) => {
 // useExtensionRegistry.js has loaded.
 const allExtensions = computed(() =>
   [declarativeExtension.value, ...registry.extensions].filter(Boolean),
-)
+);
 
 // Branch note: when useExtensionRegistry.js hot-swaps extension B, it
 // forces vue-router to re-resolve the current route (see
@@ -44,9 +44,11 @@ const allExtensions = computed(() =>
 // import(...)` already re-resolves fresh on every navigation, live-patched
 // in place by @module-federation/vite's dev.remoteHmr when it changes.
 const routeViewKey = computed(() => {
-  const active = registry.extensions.find((ext) => ext.routePath === route.path)
-  return active ? `${active.id}:${active._lastModified}` : route.fullPath
-})
+  const active = registry.extensions.find(
+    (ext) => ext.routePath === route.path,
+  );
+  return active ? `${active.id}:${active._lastModified}` : route.fullPath;
+});
 
 // Every extension's descriptor carries a `useStore` composable (see
 // extension.js in each extension, and declarativeExtensionAMetadata for
@@ -58,12 +60,12 @@ const routeViewKey = computed(() => {
 // extension with its own state shape needs no change here.
 const extensionStates = computed(() =>
   allExtensions.value
-    .filter((ext) => typeof ext.useStore === 'function')
+    .filter((ext) => typeof ext.useStore === "function")
     .map((ext) => {
-      const store = ext.useStore()
-      return { id: ext.id, label: ext.label, summary: store.summary }
+      const store = ext.useStore();
+      return { id: ext.id, label: ext.label, summary: store.summary };
     }),
-)
+);
 </script>
 
 <template>
@@ -73,7 +75,9 @@ const extensionStates = computed(() =>
       <router-link to="/" class="nav-link">Home</router-link>
 
       <p v-if="registry.loading" class="status">Discovering extensions…</p>
-      <p v-else-if="registry.error" class="status status--error">{{ registry.error }}</p>
+      <p v-else-if="registry.error" class="status status--error">
+        {{ registry.error }}
+      </p>
 
       <router-link
         v-for="ext in allExtensions"
@@ -87,9 +91,13 @@ const extensionStates = computed(() =>
              each one — see /README.md for the full comparison. -->
         <span
           class="approach-badge"
-          :class="ext.id === 'extension-a' ? 'approach-badge--declarative' : 'approach-badge--dynamic'"
+          :class="
+            ext.id === 'extension-a'
+              ? 'approach-badge--declarative'
+              : 'approach-badge--dynamic'
+          "
         >
-          {{ ext.id === 'extension-a' ? 'declarative' : 'dynamic' }}
+          {{ ext.id === "extension-a" ? "declarative" : "dynamic" }}
         </span>
       </router-link>
 
