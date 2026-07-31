@@ -7,6 +7,18 @@
          GET /favicon.ico request (a 404 otherwise) without shipping an asset. -->
     <link rel="icon" href="data:," />
     <title>Module Federation Host</title>
+    <script>
+      // Sets the theme before first paint to avoid a flash of the wrong one.
+      // src/stores/theme.js owns it from mount onward.
+      (() => {
+        const preference = localStorage.getItem("theme-preference");
+        const dark =
+          preference === "dark" ||
+          (preference !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -10,3 +10,9 @@
     <router-link to="/">Back to Home</router-link>
   </div>
 </template>
+
+<style scoped>
+a {
+  color: var(--color-accent);
+}
+</style>

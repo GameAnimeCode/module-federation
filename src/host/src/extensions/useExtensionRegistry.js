@@ -1,17 +1,18 @@
-// Reactive registry of dynamically discovered extensions (extension B),
-// synced with the backend's GET /api/extensions manifest. Extension A is
-// excluded; it has a static route (see router.js) and doesn't need this.
+// Reactive registry of dynamically discovered extensions, synced with the
+// backend's GET /api/extensions manifest. In production this owns every
+// extension; in dev it owns everything except the declarative ones.
 // Module-level state, since there's exactly one host instance per page.
 import { reactive, readonly } from "vue";
+import { DECLARATIVE_EXTENSION_NAMES } from "@declarative-extensions";
 import { API_BASE_URL } from "../config.js";
 import { loadExtension } from "./loadExtensions.js";
 
-// Names handled declaratively elsewhere; must be skipped here or they'd
-// fight the static route already registered in router.js.
-const DECLARATIVE_EXTENSION_NAMES = new Set(["extension-a"]);
+// Already routed statically by router.js; loading them here would fight that
+// route. Empty outside dev.
+const declarativeNames = new Set(DECLARATIVE_EXTENSION_NAMES);
 
 const state = reactive({
-  extensions: [], // [{ id, label, routePath, component, useStore, _manifestName, _lastModified }]
+  extensions: [], // [{ id, label, routePath, component, useStore, approach, _manifestName, _lastModified }]
   loading: true,
   error: null,
 });
@@ -35,6 +36,7 @@ function addExtension(entry, descriptor) {
   loadedVersions.set(entry.name, entry.lastModifiedUnixMs);
   state.extensions.push({
     ...descriptor,
+    approach: "dynamic", // drives the sidebar badge, see App.vue
     _manifestName: entry.name,
     _lastModified: entry.lastModifiedUnixMs,
   });
@@ -76,7 +78,7 @@ async function reconcile() {
   let manifest;
   try {
     manifest = (await fetchManifest()).filter(
-      (entry) => !DECLARATIVE_EXTENSION_NAMES.has(entry.name),
+      (entry) => !declarativeNames.has(entry.name),
     );
     state.error = null;
   } catch (err) {

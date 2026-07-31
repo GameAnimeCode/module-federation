@@ -1,6 +1,6 @@
-// Loads dynamically discovered extensions (extension B only) via the
-// standalone @module-federation/runtime API. Extension A is unrelated,
-// see declarativeExtensionA.js.
+// Loads dynamically discovered extensions via the standalone
+// @module-federation/runtime API. Anything loaded declaratively instead
+// bypasses this file entirely, see declarativeExtensions.js.
 import { registerRemotes, loadRemote } from "@module-federation/runtime";
 import { API_BASE_URL } from "../config.js";
 

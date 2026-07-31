@@ -1,0 +1,77 @@
+/* Design tokens owned by the host. Extensions consume them through the
+   cascade rather than importing anything (see /docs/theming.md).
+
+   Resolution lives in JS (stores/theme.js plus the pre-paint script in
+   index.html), which always writes a concrete data-theme, so there is no
+   prefers-color-scheme rule here to keep in sync. The app is a Vue SPA and
+   does not render without JS, so that costs nothing. */
+:root {
+  color-scheme: light;
+
+  --color-bg: #f6f8fa;
+  --color-surface: #ffffff;
+  --color-border: #d8dee4;
+  --color-text: #1f2328;
+  --color-text-muted: #59636e;
+  --color-accent: #0969da;
+
+  --color-sidebar-bg: #1e293b;
+  --color-sidebar-text: #cbd5e1;
+  --color-sidebar-text-strong: #ffffff;
+  --color-sidebar-hover: #29374b;
+  --color-sidebar-active: #334155;
+  --color-sidebar-border: #334155;
+
+  --badge-text: #1e293b;
+  --badge-declarative-bg: #7dd3fc;
+  --badge-dynamic-bg: #fcd34d;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #0d1117;
+  --color-surface: #161b22;
+  --color-border: #30363d;
+  --color-text: #e6edf3;
+  --color-text-muted: #9198a1;
+  --color-accent: #4493f8;
+
+  --color-sidebar-bg: #010409;
+  --color-sidebar-text: #9198a1;
+  --color-sidebar-text-strong: #ffffff;
+  --color-sidebar-hover: #21262d;
+  --color-sidebar-active: #30363d;
+  --color-sidebar-border: #30363d;
+
+  --badge-text: #0d1117;
+  --badge-declarative-bg: #56b6f0;
+  --badge-dynamic-bg: #d9a441;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease;
+  }
+}
