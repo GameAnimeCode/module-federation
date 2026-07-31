@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Branch hmr/latest-vite-federation dev setup: the backend, the host's own
-# Vite dev server, and both extensions each on their own `vite dev` server.
-# Each extension self-registers its dev URL with the backend on startup (see
-# each extension's devServerRegistrationPlugin in vite.config.js and the
-# backend's DevServerRegistry) — genuine, un-hardcoded discovery of a
-# *running dev server*, not a guessed port. Unlike hmr/dev-federation, the
-# host here actually LOADS from a detected dev server (see
-# host/src/extensions/loadExtensions.js) instead of only displaying that one
-# is running.
+# Starts everything needed to develop against both of this project's demo
+# extensions at once:
+#   - the backend in Development mode (:5080) — discovery API, SSE watcher,
+#     CORS for the host's dev server
+#   - the host's own Vite dev server (:5173)
+#   - extension-a (:5174) on its OWN `vite dev` server — the *declarative*
+#     extension. The host's vite.config.js statically points at this exact
+#     port, and @module-federation/vite's dev.remoteHmr live-patches its
+#     mounted component in the host on every save — no refresh needed.
+#   - extension-b in `vite build --watch` mode, writing straight into
+#     src/backend/wwwroot/apps/extensions/extension-b/ — the *dynamic*
+#     extension. The backend's existing FileSystemWatcher + SSE tells the
+#     host to re-fetch the manifest; useExtensionRegistry.js notices the
+#     changed lastModifiedUnixMs and hot-*swaps* the mounted component
+#     (full remount, not a patch — invisible in practice since its state
+#     lives in Pinia, not the component).
 #
-# What that gets you: edit an extension's source, refresh the host tab (or
-# navigate to it fresh) — no build step at all, the change is there
-# immediately, since the host is always fetching straight from the dev
-# server's live module graph. What it does NOT get you: the page updating
-# itself without a refresh while you're looking at it. See README.md's HMR
-# section for exactly why (@module-federation/vite's automatic remoteHmr
-# patching requires statically-declared remotes, which conflicts with this
-# project's fully-dynamic host) and what was actually verified.
+# See /README.md for the full comparison of the two approaches and why each
+# extension demos a different one.
 #
 # Ctrl+C stops every process this script started.
 set -euo pipefail
@@ -24,7 +25,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOST_DIR="$ROOT_DIR/src/host"
 BACKEND_DIR="$ROOT_DIR/src/backend"
-EXTENSIONS_SRC_DIR="$ROOT_DIR/src/extensions"
+EXTENSION_A_DIR="$ROOT_DIR/src/extensions/extension-a"
+EXTENSION_B_DIR="$ROOT_DIR/src/extensions/extension-b"
 
 pids=()
 cleanup() {
@@ -42,24 +44,24 @@ ensure_installed() {
 }
 
 ensure_installed "$HOST_DIR"
-for ext_dir in "$EXTENSIONS_SRC_DIR"/*/; do
-  ensure_installed "$ext_dir"
-done
+ensure_installed "$EXTENSION_A_DIR"
+ensure_installed "$EXTENSION_B_DIR"
 
 echo "==> backend (Development, http://localhost:5080)"
 dotnet build "$BACKEND_DIR" -c Debug
 (cd "$BACKEND_DIR" && ASPNETCORE_ENVIRONMENT=Development dotnet exec bin/Debug/net10.0/Backend.dll --urls http://localhost:5080) &
 pids+=("$!")
-sleep 2 # let it bind before extensions try to self-register against it
+sleep 2 # let it bind before extension-b's watch build starts touching wwwroot
 
-for ext_dir in "$EXTENSIONS_SRC_DIR"/*/; do
-  ext_name="$(basename "$ext_dir")"
-  echo "==> $ext_name (vite dev, self-registers with the backend on startup)"
-  (cd "$ext_dir" && npm run dev) &
-  pids+=("$!")
-done
+echo "==> extension-a (vite dev, declarative — the host connects to it directly)"
+(cd "$EXTENSION_A_DIR" && npm run dev) &
+pids+=("$!")
 
-sleep 1
+echo "==> extension-b (watch build -> wwwroot/apps/extensions/extension-b, dynamic — swapped in on change)"
+(cd "$EXTENSION_B_DIR" && npm run dev:watch) &
+pids+=("$!")
+
+sleep 1 # let extension-b's first watch build land before the host's first manifest fetch
 
 echo "==> host (Vite dev server, http://localhost:5173)"
 (cd "$HOST_DIR" && npm run dev) &

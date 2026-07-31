@@ -1,25 +1,63 @@
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useExtensionRegistry } from './extensions/useExtensionRegistry.js'
+import { declarativeExtensionAMetadata } from './extensions/declarativeExtensionA.js'
 
+const route = useRoute()
 const router = useRouter()
 // By the time this component mounts, main.js has already awaited
 // initExtensionRegistry() and only then installed the router — this call
-// just reads the resulting reactive state. See useExtensionRegistry.js for
-// the full load/hot-add/hot-remove lifecycle and why that ordering in
-// main.js matters.
+// just reads the resulting reactive state (extension B and anything else
+// discovered dynamically). See useExtensionRegistry.js for the full
+// load/hot-add/hot-remove/hot-swap lifecycle and why that ordering in
+// main.js matters. Extension A (declarative) isn't in here at all — see
+// below.
 const registry = useExtensionRegistry(router)
 
-// Every loaded extension's descriptor carries a `useStore` composable (see
-// extension.js in each extension) attached to the single Pinia instance
-// created in main.js and shared across the federation boundary — calling it
-// here reads live state from whichever extension is or isn't currently
-// mounted via router-view. This computed only ever reads `store.summary`,
-// never an extension-specific field like `count` or `tasks`, so adding a
-// third extension with its own state shape needs no change here.
+// Extension A's metadata (label + store hook) resolves once, asynchronously
+// — see declarativeExtensionA.js for why this is a *separate* fetch from
+// the component that actually gets rendered (router.js). `null` until then,
+// which the template treats the same as "not present yet".
+const declarativeExtension = ref(null)
+declarativeExtensionAMetadata.then((meta) => {
+  declarativeExtension.value = meta
+})
+
+// One combined list so the sidebar and the state panel don't need two
+// near-identical templates — extension A (declarative, always present once
+// resolved) first, then whatever extension B / future dynamic extensions
+// useExtensionRegistry.js has loaded.
+const allExtensions = computed(() =>
+  [declarativeExtension.value, ...registry.extensions].filter(Boolean),
+)
+
+// Branch note: when useExtensionRegistry.js hot-swaps extension B, it
+// forces vue-router to re-resolve the current route (see
+// swapExtension()'s router.replace) so <router-view> renders the freshly
+// swapped component — that's the actual fix for that path (found
+// empirically: the underlying state updated correctly without it, but the
+// page silently kept rendering the old component). Keying <router-view> on
+// the active dynamic extension's version on top of that is defense-in-depth:
+// it guarantees a full remount (not a patch) whenever the version changes.
+// Extension A doesn't need this at all — router.js's `component: () =>
+// import(...)` already re-resolves fresh on every navigation, live-patched
+// in place by @module-federation/vite's dev.remoteHmr when it changes.
+const routeViewKey = computed(() => {
+  const active = registry.extensions.find((ext) => ext.routePath === route.path)
+  return active ? `${active.id}:${active._lastModified}` : route.fullPath
+})
+
+// Every extension's descriptor carries a `useStore` composable (see
+// extension.js in each extension, and declarativeExtensionAMetadata for
+// extension A) attached to the single Pinia instance created in main.js and
+// shared across the federation boundary — calling it here reads live state
+// from whichever extension is or isn't currently mounted via router-view.
+// This computed only ever reads `store.summary`, never an
+// extension-specific field like `count` or `tasks`, so adding a third
+// extension with its own state shape needs no change here.
 const extensionStates = computed(() =>
-  registry.extensions
+  allExtensions.value
     .filter((ext) => typeof ext.useStore === 'function')
     .map((ext) => {
       const store = ext.useStore()
@@ -36,22 +74,23 @@ const extensionStates = computed(() =>
 
       <p v-if="registry.loading" class="status">Discovering extensions…</p>
       <p v-else-if="registry.error" class="status status--error">{{ registry.error }}</p>
-      <p v-else-if="registry.extensions.length === 0" class="status">
-        No extensions found under wwwroot/apps/extensions.
-      </p>
 
       <router-link
-        v-for="ext in registry.extensions"
+        v-for="ext in allExtensions"
         :key="ext.id"
         :to="ext.routePath"
         class="nav-link"
       >
         {{ ext.label }}
-        <!-- Branch hmr/latest-vite-federation: this extension was actually
-             loaded FROM its dev server (see loadExtensions.js) — not just
-             discovered like on hmr/dev-federation. The current page reflects
-             whatever was last saved; refresh after editing to see updates. -->
-        <span v-if="ext._devUrl" class="dev-badge" :title="`Loaded from dev server at ${ext._devUrl}`">dev</span>
+        <!-- Both extensions are always present once loaded; this badge is
+             purely informational, showing which loading strategy is behind
+             each one — see /README.md for the full comparison. -->
+        <span
+          class="approach-badge"
+          :class="ext.id === 'extension-a' ? 'approach-badge--declarative' : 'approach-badge--dynamic'"
+        >
+          {{ ext.id === 'extension-a' ? 'declarative' : 'dynamic' }}
+        </span>
       </router-link>
 
       <section v-if="extensionStates.length > 0" class="state-panel">
@@ -63,7 +102,7 @@ const extensionStates = computed(() =>
       </section>
     </nav>
     <main class="content">
-      <router-view />
+      <router-view :key="routeViewKey" />
     </main>
   </div>
 </template>
@@ -104,16 +143,23 @@ const extensionStates = computed(() =>
   color: white;
 }
 
-.dev-badge {
+.approach-badge {
   margin-left: 0.4rem;
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: #1e293b;
-  background: #7dd3fc;
   border-radius: 3px;
   padding: 0.05rem 0.3rem;
   vertical-align: middle;
+}
+
+.approach-badge--declarative {
+  background: #7dd3fc;
+}
+
+.approach-badge--dynamic {
+  background: #fcd34d;
 }
 
 .status {

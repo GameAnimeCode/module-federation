@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:watch": "vite build --watch --outDir ../../backend/wwwroot/apps/extensions/extension-b",
     "build": "vite build",
     "preview": "vite preview"
   },

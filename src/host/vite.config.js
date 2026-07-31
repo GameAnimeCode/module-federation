@@ -2,32 +2,48 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { federation } from '@module-federation/vite'
 
-// Branch hmr/latest-vite-federation: swaps @originjs/vite-plugin-federation
-// (which pinned this project to Vite 5 — see README.md's HMR section) for
-// @module-federation/vite, the actively-maintained plugin from the Module
-// Federation team, which explicitly supports Vite 8. Two changes from the
-// other branches' host config worth calling out:
+// This host demos two ways of loading a Module Federation extension side by
+// side — see /README.md for the full comparison:
 //
-// 1. No `remotes` entry at all — not even an empty/placeholder one. This
-//    plugin's own `remotes` option is purely for statically-known remotes;
-//    fully-dynamic loading goes through the standalone `@module-federation/runtime`
-//    package instead (`registerRemotes` + `loadRemote`, see
-//    src/extensions/loadExtensions.js), which doesn't require anything
-//    declared here at all. No @originjs-style "must have at least one
-//    entry or a silent internal check fails" workaround needed.
-// 2. `dev.remoteHmr: true` — this is the whole point of this branch. It's a
-//    documented, first-class option (see this plugin's own .d.ts) with
-//    explicit Vue support: when a remote's code changes, the plugin clears
-//    the federation module cache and (for Vue) guards the host's
-//    `__VUE_HMR_RUNTIME__` so the remote's freshly-loaded module can be
-//    hot-swapped without a page reload. @originjs/vite-plugin-federation had
-//    no equivalent — its dev-mode "expose"/"shared" plugins were empty
-//    stubs (see README.md).
-export default defineConfig({
+//   - Extension A: declarative. Statically declared below in `remotes`,
+//     loaded via a literal `import('extension-a/Extension')` call site (see
+//     router.js). This is the one config on the whole host that hardcodes
+//     an extension's identity — a deliberate trade for real, verified,
+//     zero-reload live HMR when editing extension-a's source. Its dev URL
+//     points at extension-a's fixed dev port (5174); its production URL
+//     points at the same same-origin path every extension is built into
+//     (`/apps/extensions/extension-a/remoteEntry.js`), decided by Vite's
+//     own `command` ('serve' vs 'build') — no environment variables needed.
+//   - Extension B: fully dynamic — no static remotes entry, no build-time
+//     knowledge at all. Discovered from GET /api/extensions and loaded via
+//     the standalone `@module-federation/runtime` API (`registerRemotes` +
+//     `loadRemote`, see src/extensions/loadExtensions.js) purely at
+//     runtime — the pattern the whole rest of this project is about.
+//
+// `dev.remoteHmr: true` is what makes extension A's live patching work: a
+// documented, first-class option (see @module-federation/vite's own .d.ts)
+// with explicit Vue support — when a *statically declared* remote's code
+// changes, the plugin clears the federation module cache and guards the
+// host's `__VUE_HMR_RUNTIME__` so the freshly-loaded module hot-swaps
+// without a page reload. It does nothing for extension B, which this
+// project's own useExtensionRegistry.js instead hot-swaps manually by
+// noticing its `lastModifiedUnixMs` changed and forcing a cache-busted
+// reload — see that file for the full mechanism.
+export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
     federation({
       name: 'host',
+      remotes: {
+        'extension-a': {
+          type: 'module',
+          name: 'extension-a',
+          entry:
+            command === 'serve'
+              ? 'http://localhost:5174/remoteEntry.js'
+              : '/apps/extensions/extension-a/remoteEntry.js',
+        },
+      },
       shared: {
         // Both instantiated exactly once by the host; every extension that
         // declares them as shared (see extensions' vite.config.js) reuses
@@ -57,4 +73,4 @@ export default defineConfig({
   server: {
     port: 5173,
   },
-})
+}))
