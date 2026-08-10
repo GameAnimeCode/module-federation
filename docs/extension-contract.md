@@ -1,67 +1,70 @@
 # The extension contract
 
-Back to the [README](../README.md).
+Back to the [README][readme].
 
 Everything an extension must agree to, and what breaks when it does not.
 
 This project runs two extensions written by one author, so the conventions hold
 by inspection. A real platform has neither luxury. Extensions arrive from teams
-you do not control, built against a host you shipped months ago, and **nothing
-in Module Federation validates any of this**. The failures below are all
-silent or misleading, which is what makes them worth writing down before the
-third extension exists rather than after.
+you do not control, built against a host you shipped months ago. Most of what
+follows is enforced by nothing at all, and the failures are quiet, which is why
+they are worth settling before the third extension exists rather than after.
 
 ## The five contracts
 
-|                  | Carried by                                                             | Enforced by |
-| ---------------- | ---------------------------------------------------------------------- | ----------- |
-| **Module**       | `./Extension` exposing `{ id, label, routePath, component, useStore }` | Nothing     |
-| **Identity**     | Folder name, federation `name`, `id`, `routePath`, store id            | Nothing     |
-| **State**        | A Pinia store exposing a `summary` getter                              | Nothing     |
-| **Styling**      | The host's `--color-*` custom properties                               | Nothing     |
-| **Dependencies** | The `shared` singleton set, and the versions behind it                 | Nothing     |
+|                  | Carried by                                                             | Checked by                                                                  |
+| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Module**       | `./Extension` exposing `{ id, label, routePath, component, useStore }` | Nothing                                                                     |
+| **Identity**     | Folder name, federation `name`, `id`, `routePath`, store id            | The host rejects a duplicate `id` or `routePath`; store ids are not checked |
+| **State**        | A Pinia store exposing a `summary` getter                              | Nothing                                                                     |
+| **Styling**      | The host's `--color-*` custom properties                               | Nothing                                                                     |
+| **Dependencies** | The `shared` singleton set, and the versions behind it                 | Nothing                                                                     |
 
-"Enforced by: nothing" is the whole point of this page. Module Federation
-resolves modules; it does not type-check them, validate their shape, or notice
-that two of them claim the same name.
+Module Federation checks none of it. It resolves modules; it does not
+type-check them, validate their shape, or notice two of them claiming the same
+name. This host adds a single check of its own, on route identity. Everything
+else holds by convention, which works until it does not.
 
 ## Identity, and how collisions actually fail
 
-Five names travel together for each extension, and this project keeps them
-identical on purpose:
+Five names travel with each extension. This project keeps them identical on
+purpose, using `extension-b` as the example:
 
-```
-src/extensions/extension-b/     folder name
-  vite.config.js  name:         'extension-b'   federation container
-  src/extension.js  id:         'extension-b'   sidebar key + vue-router route name
-                    routePath:  '/ext/extension-b'
-  src/store.js    defineStore:  'extension-b'   Pinia registry key
-```
+| Name        | Declared in                     | Used as                                    |
+| ----------- | ------------------------------- | ------------------------------------------ |
+| Folder name | `src/extensions/extension-b/`   | What the backend discovers and lists       |
+| `name`      | `vite.config.js`                | The federation container's name            |
+| `id`        | `src/extension.js`              | Sidebar key, and the vue-router route name |
+| `routePath` | `src/extension.js`              | The URL path the extension owns            |
+| Store id    | `src/store.js`, `defineStore()` | Key in the shared Pinia registry           |
 
 The backend discovers extensions by folder name
-([dynamic discovery](./dynamic-discovery.md)), so the folder is the de facto
+([dynamic discovery][dynamic-discovery]), so the folder is the de facto
 primary key. Everything else is convention.
 
 Collisions do not announce themselves. Verified against this repo's own
 `vue-router` 4.6.4 and `pinia` 4.0.2:
 
-**Duplicate Pinia store id.** The second `defineStore` never takes effect.
-`useExtensionBStore()` returns extension A's store, and reads come back with
-A's state:
+**Duplicate Pinia store id.** `defineStore` registers nothing by itself; it
+returns a `useStore` function. The store is created on the _first call_ to any
+function claiming that id, and every later call gets that same instance back.
+So the winner is whichever extension renders first, not whichever was declared
+or loaded first, and the loser's `state`, `getters`, and `actions` are never
+used:
 
 ```js
-const useA = defineStore("shared-id", {
-  state: () => ({ who: "extension-a" }),
-});
-const useB = defineStore("shared-id", {
-  state: () => ({ who: "extension-b" }),
-});
+const useA = defineStore("dup", { state: () => ({ who: "A" }) });
+const useB = defineStore("dup", { state: () => ({ who: "B" }) });
+
+useB().who; // "B"   <- called first, so B's definition wins
+useA().who; // "B"   <- A's own state never materializes
 useA() === useB(); // true
-useB().who; // "extension-a"
 ```
 
-No warning. Extension B appears to work, shows the wrong data, and writes into
-A's state.
+Nothing warns. One extension silently supplies the state for both, and the
+other reads and writes into it. Because the winner depends on render order, the
+same pair of extensions can behave differently depending on which route the
+user opens first.
 
 **Duplicate route name.** `router.addRoute` treats the name as a key and
 removes the existing route:
@@ -130,7 +133,7 @@ return { id: ext.id, label: ext.label, summary: store.summary };
 
 `summary` returns a plain string. That is the entire read surface, which is why
 adding an extension with completely different state needs no host change (see
-[keeping the host generic](./dynamic-discovery.md#keeping-the-host-generic)).
+[keeping the host generic][discovery-generic]).
 
 Standardize three things a platform will otherwise get wrong:
 
@@ -140,7 +143,7 @@ Standardize three things a platform will otherwise get wrong:
   declared `singleton: true` in _every_ config. A remote that omits `pinia`
   bundles its own copy, and `useStore()` fails with "no active Pinia" because
   the injection `Symbol` differs (see
-  [why the shared singleton matters](./module-federation.md#why-the-shared-singleton-matters)).
+  [why the shared singleton matters][mf-singletons]).
 - **What the read surface is.** If `summary` grows into `summary`, `status`,
   and `badgeCount`, that is a versioned interface now. Treat it like one.
 
@@ -158,22 +161,22 @@ For a platform, standardize three things:
 - **A supported range per shared package**, expressed as `requiredVersion`, so
   a remote states what it needs rather than assuming.
 - **Whether a mismatch is fatal**, via `strictVersion`. Silent version drift is
-  the failure mode described in [costs](./module-federation.md#costs), and this is
+  the failure mode described in [costs][mf-costs], and this is
   the switch that makes it loud.
 - **A compatibility policy for already-deployed remotes.** The host upgrades on
   its own schedule; remotes built against the previous major stay deployed.
   Decide whether the host supports N-1, and how it detects and refuses N-2.
 
-See [version negotiation](./module-federation.md#version-negotiation-and-what-this-repo-leaves-unset).
+See [version negotiation][mf-versions].
 
 ## Styling
 
 The host publishes semantic tokens; extensions consume them with fallbacks and
-keep only their own brand accent. Full detail in [theming](./theming.md).
+keep only their own brand accent. Full detail in [theming][theming].
 
 The caveat worth repeating here: **tokens are a public API**. Once a remote you
 do not rebuild depends on `--color-surface`, renaming it breaks that remote at
-runtime with no error, just wrong colours. A platform should version the token
+runtime with no error, just wrong colors. A platform should version the token
 vocabulary and treat removals as breaking changes, exactly as it would for the
 descriptor shape.
 
@@ -204,7 +207,7 @@ Called out so the demo is not mistaken for a template:
 
 Loading and rendering fail in different places, and a `try`/`catch` around the
 load only covers the first.
-[`ExtensionBoundary.vue`](../src/host/src/components/ExtensionBoundary.vue)
+[`ExtensionBoundary.vue`][extension-boundary]
 wraps `<router-view>` and covers the second:
 
 ```js
@@ -266,3 +269,12 @@ from four teams:
 - [ ] Content-hashed or explicitly versioned remote entry files
 - [ ] A per-extension `try`/`catch` around loading, plus an error boundary
       around rendering
+
+[discovery-generic]: ./dynamic-discovery.md#keeping-the-host-generic
+[dynamic-discovery]: ./dynamic-discovery.md
+[extension-boundary]: ../src/host/src/components/ExtensionBoundary.vue
+[mf-costs]: ./module-federation.md#costs
+[mf-singletons]: ./module-federation.md#why-the-shared-singleton-matters
+[mf-versions]: ./module-federation.md#version-negotiation-and-what-this-repo-leaves-unset
+[readme]: ../README.md
+[theming]: ./theming.md

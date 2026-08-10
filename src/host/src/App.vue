@@ -78,7 +78,7 @@ const extensionStates = computed(() =>
 
       <section class="sidebar-footer">
         <h2>Theme</h2>
-        <div class="theme-control" role="group" aria-label="Colour theme">
+        <div class="theme-control" role="group" aria-label="Color theme">
           <button
             v-for="option in themeOptions"
             :key="option.value"

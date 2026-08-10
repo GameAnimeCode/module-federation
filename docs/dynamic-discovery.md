@@ -1,6 +1,6 @@
 # Dynamic discovery
 
-Back to the [README](../README.md).
+Back to the [README][readme].
 
 This is how the application actually loads extensions: the host has no
 build-time reference to them at all. No `remotes` entry, no `import()`, no
@@ -9,13 +9,13 @@ changed by being told.
 
 In production every extension comes in this way. In the dev server, everything
 except the one declarative remote does. See
-[HMR approaches](./hmr-approaches.md) for why that exception exists.
+[HMR approaches][hmr-approaches] for why that exception exists.
 
-![Dynamic discovery and hot-swap sequence](./assets/dynamic-discovery.svg)
+![Dynamic discovery and hot-swap sequence][diagram-discovery]
 
 ## 1. The backend publishes a manifest
 
-[`GET /api/extensions`](../src/backend/Program.cs) scans
+[`GET /api/extensions`][program-cs] scans
 `wwwroot/apps/extensions/*/` for any folder containing a `remoteEntry.js`:
 
 ```json
@@ -36,9 +36,9 @@ token that makes hot-swap possible (step 5).
 
 ## 2. The host loads each entry
 
-[`useExtensionRegistry.js`](../src/host/src/extensions/useExtensionRegistry.js)
+[`useExtensionRegistry.js`][registry]
 fetches the manifest at startup and hands each new entry to
-[`loadExtensions.js`](../src/host/src/extensions/loadExtensions.js), which
+[`loadExtensions.js`][load-extensions], which
 registers the remote by URL and imports its exposed module:
 
 ```js
@@ -74,7 +74,7 @@ router.addRoute({
 ```
 
 `initExtensionRegistry()` is awaited **before** `app.use(router)` in
-[`main.js`](../src/host/src/main.js). Otherwise the router's initial navigation
+[`main.js`][host-main]. Otherwise the router's initial navigation
 can resolve against an incomplete route table and land on the catch-all.
 
 ## 4. The backend pushes changes
@@ -97,13 +97,13 @@ each entry into one of three cases, using `lastModifiedUnixMs` to tell
 **New.** Load it, then check its `id` and `routePath` against the router
 before adding the route and the sidebar entry. A clash is logged and the
 extension skipped, rather than allowed to evict the incumbent's route (see
-[the extension contract](./extension-contract.md#identity-and-how-collisions-actually-fail)).
+[the extension contract][contract-identity]).
 
 **Gone.** Drop the sidebar entry and call `router.removeRoute(id)`. Module
 Federation has no supported "unload a remote" API, so the already-fetched JS
 stays cached in the tab, but it is no longer reachable through the UI. A stale
 deep link resolves to the router's catch-all
-[`ExtensionUnavailableView`](../src/host/src/views/ExtensionUnavailableView.vue)
+[`ExtensionUnavailableView`][unavailable-view]
 rather than a router error or a blank page.
 
 **Changed.** Re-import with a cache-busting query string and mutate the
@@ -122,7 +122,7 @@ are. Same URL, same cached module, no matter what changed on disk.
 A load failure is caught per extension and logged, so a remote that fails to
 load cannot take down the host shell. Render-time failures are caught
 separately, by the boundary around `<router-view>` (see
-[containing a failing extension](./extension-contract.md#containing-a-failing-extension)).
+[containing a failing extension][contract-boundary]).
 
 ## The subtle part: `addRoute()` does not refresh what is rendered
 
@@ -147,7 +147,7 @@ if (router.currentRoute.value.path === descriptor.routePath) {
 ```
 
 where `routeViewKey` is `` `${active.id}:${active._lastModified}` `` for the
-active dynamic extension. See [`App.vue`](../src/host/src/App.vue).
+active dynamic extension. See [`App.vue`][host-app-vue].
 
 ## Keeping the host generic
 
@@ -169,7 +169,7 @@ const extensionStates = computed(() =>
 A third dynamic extension with entirely different state needs no host change,
 as long as its store exposes a `summary` getter too, and as long as its `id`,
 `routePath`, and store id collide with nothing already loaded. Nothing checks
-that second part; see [the extension contract](./extension-contract.md).
+that second part; see [the extension contract][extension-contract].
 
 ## Trade-offs of this design
 
@@ -192,4 +192,18 @@ that second part; see [the extension contract](./extension-contract.md).
 ## Adding a third extension, dynamically
 
 No host code changes are required. See
-[Build a federated app](./build-a-federated-app.md#adding-a-third-extension).
+[Build a federated app][build-third-extension].
+
+[build-third-extension]: ./build-a-federated-app.md#adding-a-third-extension
+[contract-boundary]: ./extension-contract.md#containing-a-failing-extension
+[contract-identity]: ./extension-contract.md#identity-and-how-collisions-actually-fail
+[diagram-discovery]: ./assets/dynamic-discovery.svg
+[extension-contract]: ./extension-contract.md
+[hmr-approaches]: ./hmr-approaches.md
+[host-app-vue]: ../src/host/src/App.vue
+[host-main]: ../src/host/src/main.js
+[load-extensions]: ../src/host/src/extensions/loadExtensions.js
+[program-cs]: ../src/backend/Program.cs
+[readme]: ../README.md
+[registry]: ../src/host/src/extensions/useExtensionRegistry.js
+[unavailable-view]: ../src/host/src/views/ExtensionUnavailableView.vue

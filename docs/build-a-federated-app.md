@@ -1,6 +1,6 @@
 # Build a federated app
 
-Back to the [README](../README.md).
+Back to the [README][readme].
 
 How this project is constructed, in the order you would build it. Every step
 links to the file it describes, so this doubles as a source map.
@@ -32,8 +32,8 @@ export default {
 ```
 
 Both extensions expose exactly this shape
-([extension-a](../src/extensions/extension-a/src/extension.js),
-[extension-b](../src/extensions/extension-b/src/extension.js)), which is what
+([extension-a][ext-a-descriptor],
+[extension-b][ext-b-descriptor]), which is what
 makes them interchangeable from the host's point of view. The remote carries
 its own identity, its own route, and its own state accessor. The host stays
 generic.
@@ -43,7 +43,7 @@ Design this contract first. Everything below follows from it.
 ## Step 1: the remote
 
 Install the plugin and expose the descriptor. From
-[`extension-b/vite.config.js`](../src/extensions/extension-b/vite.config.js):
+[`extension-b/vite.config.js`][ext-b-vite-config]:
 
 ```js
 import { defineConfig } from "vite";
@@ -84,7 +84,7 @@ Three things to get right:
 - **`exposes`** points at the descriptor module, not the `.vue` file.
 
 The remote's own `main.js` and `App.vue`
-([example](../src/extensions/extension-a/src/App.vue)) exist only as a
+([example][ext-a-app-vue]) exist only as a
 standalone preview harness. The host never runs them, which is why
 `createPinia()` lives in `main.js` and not in `store.js`: in the federated
 path, Pinia comes from the host.
@@ -128,7 +128,7 @@ The `await` matters. Dynamic routes are added inside
 deep link to an extension resolves against an incomplete route table and lands
 on the catch-all.
 
-Host federation config, from [`host/vite.config.js`](../src/host/vite.config.js):
+Host federation config, from [`host/vite.config.js`][host-vite-config]:
 
 ```js
 federation({
@@ -169,7 +169,7 @@ dev: { remoteHmr: true },
 ```
 
 Then load it through a **literal** `import()`, in
-[`declarativeExtensions.js`](../src/host/src/extensions/declarativeExtensions.js):
+[`declarativeExtensions.js`][declarative-dev]:
 
 ```js
 export const declarativeRoutes = [
@@ -202,12 +202,12 @@ resolve: {
 },
 ```
 
-The [stub](../src/host/src/extensions/declarativeExtensions.prod.js) exports
+The [stub][declarative-prod] exports
 the same three names with empty values, so
-[`router.js`](../src/host/src/router.js), [`App.vue`](../src/host/src/App.vue),
-and [`useExtensionRegistry.js`](../src/host/src/extensions/useExtensionRegistry.js)
+[`router.js`][host-router], [`App.vue`][host-app-vue],
+and [`useExtensionRegistry.js`][registry]
 work unchanged and the dynamic registry ends up owning every extension. See
-[HMR approaches](./hmr-approaches.md#how-the-declarative-path-is-kept-out-of-production)
+[HMR approaches][hmr-alias]
 for why an alias beats an `import.meta.env.DEV` guard here.
 
 Skip this step entirely if you can live with the rebuild-and-swap loop. It is
@@ -216,7 +216,7 @@ the only part of this project that needs two code paths.
 ## Step 5: wire up dynamic loading
 
 Register by URL and import by name, in
-[`loadExtensions.js`](../src/host/src/extensions/loadExtensions.js):
+[`loadExtensions.js`][load-extensions]:
 
 ```js
 import { registerRemotes, loadRemote } from "@module-federation/runtime";
@@ -232,12 +232,12 @@ return remoteModule.default ?? remoteModule;
 `remoteEntry.js` as a classic script and throws.
 
 Where the URL comes from, how changes are detected, and how a rebuilt remote is
-swapped in are covered in [dynamic discovery](./dynamic-discovery.md).
+swapped in are covered in [dynamic discovery][dynamic-discovery].
 
 ## Step 6: the backend
 
 A Minimal API doing three things
-([`Program.cs`](../src/backend/Program.cs)):
+([`Program.cs`][program-cs]):
 
 ```csharp
 app.UseDefaultFiles();
@@ -254,17 +254,17 @@ runs, or static files stay broken even after the folder appears.
 
 ## Step 7: dev versus production origins
 
-![dev.sh and build.sh](./assets/dev-and-build.svg)
+![dev.sh and build.sh][diagram-scripts]
 
-In production, [`build.sh`](../scripts/build.sh) copies everything into
+In production, [`build.sh`][build-sh] copies everything into
 `wwwroot`, so host, API, and bundles share one origin and CORS is never
 exercised.
 
 In dev they do not. The host runs on `:5173`, the backend on `:5080`:
 
-- [`host/.env.development`](../src/host/.env.development) sets
+- [`host/.env.development`][host-env] sets
   `VITE_API_BASE_URL=http://localhost:5080`, read by
-  [`config.js`](../src/host/src/config.js) and empty in production.
+  [`config.js`][host-config] and empty in production.
 - The backend's `DevClients` CORS policy allows `:5173`, and is only applied
   when `ASPNETCORE_ENVIRONMENT=Development`.
 - Extension A's dev loading never touches the backend. The host's browser tab
@@ -275,7 +275,7 @@ In dev they do not. The host runs on `:5173`, the backend on `:5080`:
 
 ### Dynamically (no host code changes)
 
-1. Copy [`src/extensions/extension-b`](../src/extensions/extension-b) to
+1. Copy [`src/extensions/extension-b`][ext-b-dir] to
    `src/extensions/extension-c`.
 2. In `vite.config.js`, change `name` to `'extension-c'` and pick a free dev
    `port`.
@@ -290,7 +290,7 @@ In dev they do not. The host runs on `:5173`, the backend on `:5080`:
    ```json
    "dev:watch": "vite build --watch --outDir ../../backend/wwwroot/apps/extensions/extension-c"
    ```
-   and add it to [`scripts/dev.sh`](../scripts/dev.sh)'s process list.
+   and add it to [`scripts/dev.sh`][dev-sh]'s process list.
 
 ### Also giving it live HMR in dev (optional, additive)
 
@@ -300,14 +300,14 @@ loop on top, and changes nothing about production.
 1. Fix its dev port in `vite.config.js` (e.g. `5176`).
 2. Add it to the host's `vite.config.js` `remotes` map, inside the `isDev`
    branch, pointing at that port.
-3. In [`declarativeExtensions.js`](../src/host/src/extensions/declarativeExtensions.js):
+3. In [`declarativeExtensions.js`][declarative-dev]:
    add `'extension-c'` to `DECLARATIVE_EXTENSION_NAMES`, push a route onto
    `declarativeRoutes`, and add a metadata entry to
    `declarativeExtensionsMetadata`. Both `import()` calls must use the literal
    specifier `'extension-c/Extension'`.
 4. Leave `declarativeExtensions.prod.js` alone. It stays empty, which is what
    keeps production dynamic.
-5. Add its dev server to [`scripts/dev.sh`](../scripts/dev.sh).
+5. Add its dev server to [`scripts/dev.sh`][dev-sh].
 
 `dev: { remoteHmr: true }` is already set on the host, so nothing further is
 needed there. Adding the name to `DECLARATIVE_EXTENSION_NAMES` is what stops
@@ -318,7 +318,7 @@ the dynamic registry from also loading it in dev and fighting the static route.
 The conventions above hold in this repo because one author wrote both
 extensions. Once extensions arrive from teams you do not control, the naming,
 store, and token contracts need enforcing, and the collision failure modes are
-silent. See [the extension contract](./extension-contract.md).
+silent. See [the extension contract][extension-contract].
 
 ## Checklist for a new federated project
 
@@ -333,3 +333,26 @@ silent. See [the extension contract](./extension-contract.md).
 - [ ] `type: 'module'` on every `registerRemotes()` call
 - [ ] Cache busting for any entry file that is not content-hashed
 - [ ] Dev CORS policy scoped to `Development` only
+
+[build-sh]: ../scripts/build.sh
+[declarative-dev]: ../src/host/src/extensions/declarativeExtensions.js
+[declarative-prod]: ../src/host/src/extensions/declarativeExtensions.prod.js
+[dev-sh]: ../scripts/dev.sh
+[diagram-scripts]: ./assets/dev-and-build.svg
+[dynamic-discovery]: ./dynamic-discovery.md
+[ext-a-app-vue]: ../src/extensions/extension-a/src/App.vue
+[ext-a-descriptor]: ../src/extensions/extension-a/src/extension.js
+[ext-b-descriptor]: ../src/extensions/extension-b/src/extension.js
+[ext-b-dir]: ../src/extensions/extension-b
+[ext-b-vite-config]: ../src/extensions/extension-b/vite.config.js
+[extension-contract]: ./extension-contract.md
+[hmr-alias]: ./hmr-approaches.md#how-the-declarative-path-is-kept-out-of-production
+[host-app-vue]: ../src/host/src/App.vue
+[host-config]: ../src/host/src/config.js
+[host-env]: ../src/host/.env.development
+[host-router]: ../src/host/src/router.js
+[host-vite-config]: ../src/host/vite.config.js
+[load-extensions]: ../src/host/src/extensions/loadExtensions.js
+[program-cs]: ../src/backend/Program.cs
+[readme]: ../README.md
+[registry]: ../src/host/src/extensions/useExtensionRegistry.js

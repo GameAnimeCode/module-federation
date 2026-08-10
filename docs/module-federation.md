@@ -1,6 +1,6 @@
 # Module Federation: what it is and when to reach for it
 
-Back to the [README](../README.md).
+Back to the [README][readme].
 
 ## The problem it solves
 
@@ -23,11 +23,11 @@ stay separate all the way through deployment and only meet in the browser.
 
 ## The three concepts
 
-| Term                  | What it means                                            | In this repo                                                                                   |
-| --------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Host** (consumer)   | The app that loads modules it did not compile            | [`src/host`](../src/host)                                                                      |
-| **Remote** (producer) | A separately built app that publishes modules            | [`extension-a`](../src/extensions/extension-a), [`extension-b`](../src/extensions/extension-b) |
-| **Shared**            | Packages the host and remotes agree to load exactly once | `vue`, `vue-router`, `pinia`                                                                   |
+| Term                  | What it means                                            | In this repo                                           |
+| --------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| **Host** (consumer)   | The app that loads modules it did not compile            | [`src/host`][host-dir]                                 |
+| **Remote** (producer) | A separately built app that publishes modules            | [`extension-a`][ext-a-dir], [`extension-b`][ext-b-dir] |
+| **Shared**            | Packages the host and remotes agree to load exactly once | `vue`, `vue-router`, `pinia`                           |
 
 Each remote publishes a small manifest file, `remoteEntry.js`, describing what
 it exposes and which shared dependencies it expects. The host fetches that
@@ -64,8 +64,8 @@ shared: {
 
 In this repo the payoff is visible in the host's sidebar: both extensions keep
 their state in their own Pinia store, and the host reads a `summary` getter
-from each. See [`extension-a/src/store.js`](../src/extensions/extension-a/src/store.js)
-and [`host/src/App.vue`](../src/host/src/App.vue). The count survives navigating
+from each. See [`extension-a/src/store.js`][ext-a-store]
+and [`host/src/App.vue`][host-app-vue]. The count survives navigating
 away from the extension, because the state lives in the shared store rather
 than in the unmounted component.
 
@@ -101,7 +101,7 @@ implicit assumption into a checked one.
 
 Two caveats on this section, stated plainly. The option names and shapes above
 come from the plugin's own type definitions. This project has never actually
-run a version mismatch, so treat the precise runtime behaviour on a conflict
+run a version mismatch, so treat the precise runtime behavior on a conflict
 as something to verify against your own setup rather than something this repo
 demonstrates. The claim being made here is narrower: the knobs exist, this repo
 leaves them unset, and a real platform should not.
@@ -115,11 +115,11 @@ leaves them unset, and a real platform should not.
 - **Remotes live inside the host's DOM.** They render into it directly, use the
   host's router, and read its stores, so focus management and modals behave the
   way they would in a single bundle. The CSS cascade reaches them too, which is
-  how this repo themes its extensions (see [theming](./theming.md)). An iframe
+  how this repo themes its extensions (see [theming][theming]). An iframe
   gives up all of that.
 - **Runtime extensibility.** Because the remote's URL is just a string, the set
   of loadable modules can be decided at runtime. This is what makes a plugin
-  architecture possible, and it is the core of [dynamic discovery](./dynamic-discovery.md).
+  architecture possible, and it is the core of [dynamic discovery][dynamic-discovery].
 - **Incremental adoption.** A monolith can expose one route as a remote without
   restructuring anything else.
 
@@ -143,12 +143,12 @@ These are real, and they are the reason Module Federation is not a default.
   deployment, and its own set of cache headers and CORS rules, with a failure
   mode to match. This repo's host wraps every load in a `try`/`catch` so a remote that
   fails to load cannot take down the shell
-  ([`useExtensionRegistry.js`](../src/host/src/extensions/useExtensionRegistry.js)).
+  ([`useExtensionRegistry.js`][registry]).
   A remote that loads and then throws while rendering is caught separately, by
   an error boundary around the router view (see
-  [the extension contract](./extension-contract.md#containing-a-failing-extension)).
+  [the extension contract][contract-boundary]).
 - **Tooling maturity varies.** The Vite ecosystem in particular has churned:
-  see [How this project got here](#how-this-project-got-here) below.
+  see [Choosing a Vite plugin](#choosing-a-vite-plugin) below.
 - **There is no sandbox.** A remote runs in the same realm with the host's full
   privileges, which makes federation suitable only for code you already trust.
   Untrusted third-party plugins need an iframe or a worker.
@@ -179,33 +179,49 @@ These are real, and they are the reason Module Federation is not a default.
 **Rule of thumb:** reach for Module Federation when _independent deployment_ is
 the actual requirement. If you only want code reuse, use a package.
 
-## How this project got here
+## Choosing a Vite plugin
 
-This repo started on `@originjs/vite-plugin-federation`. It works, but its
-latest published release is `1.4.1` from April 2025, and its own devDependency
-on Vite is `^4.0.5` with no peer range declared for newer majors. Trying to
-move the project onto a current Vite meant taking that on faith. A second
-problem was decisive: its dev-mode plugins could not serve a real federation
-container from a `vite dev` server, so remotes had to be pre-built even during
-development.
+Two plugins implement Module Federation for Vite, and the choice is not close
+at the time of writing. This matters more than most tooling decisions, because
+the plugin dictates what your dev loop can do (see
+[HMR approaches][hmr-approaches]).
 
-`@module-federation/vite` fixed both. It declares
-`vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0` as a peer range, so the Vite 8
-upgrade was supported rather than assumed, and its `dev.remoteHmr` option
-implements cross-federation HMR with a documented Vue path: it pins the
-host's `__VUE_HMR_RUNTIME__` so remote-loaded Vue copies cannot overwrite it,
-and clears the federation `moduleCache` on `vite:beforeUpdate`.
+**`@originjs/vite-plugin-federation`** is the older and more widely blogged
+about of the two. Its most recent release is `1.4.1` from April 2025, and its
+own development dependency on Vite is `^4.0.5` with no peer range declared for
+newer majors, so running it on a current Vite means taking compatibility on
+faith. Its dev-mode plugins also cannot serve a real federation container from
+a `vite dev` server, which forces you to pre-build every remote even while
+developing it.
 
-That option also introduced the constraint shaping this whole demo. Automatic
-HMR patching requires the host to know its remotes at dev-server startup, which
-is why the declarative path here is confined to the dev server. See
-[HMR approaches](./hmr-approaches.md).
+**`@module-federation/vite`** is maintained by the Module Federation project
+itself. It declares `vite: ^5 || ^6 || ^7 || ^8` as a peer range, so a Vite
+upgrade is supported rather than assumed, and its `dev.remoteHmr` option
+implements cross-federation hot reloading with an explicit Vue path.
+
+This repo uses the second, and switching to it is what made the live-HMR
+comparison possible at all.
 
 ## Further reading
 
-- [The two approaches to HMR](./hmr-approaches.md), the trade-off this repo exists to show
-- [Dynamic discovery](./dynamic-discovery.md), loading remotes the host was never built against
-- [Theming](./theming.md), styling that crosses the boundary without federation
-- [The extension contract](./extension-contract.md), what to standardize before a second team joins
-- [Build a federated app](./build-a-federated-app.md), the step-by-step
-- [module-federation.io](https://module-federation.io/), upstream docs
+- [The two approaches to HMR][hmr-approaches], the trade-off this repo exists to show
+- [Dynamic discovery][dynamic-discovery], loading remotes the host was never built against
+- [Theming][theming], styling that crosses the boundary without federation
+- [The extension contract][extension-contract], what to standardize before a second team joins
+- [Build a federated app][build-guide], the step-by-step
+- [module-federation.io][module-federation-docs], upstream docs
+
+[build-guide]: ./build-a-federated-app.md
+[contract-boundary]: ./extension-contract.md#containing-a-failing-extension
+[dynamic-discovery]: ./dynamic-discovery.md
+[ext-a-dir]: ../src/extensions/extension-a
+[ext-a-store]: ../src/extensions/extension-a/src/store.js
+[ext-b-dir]: ../src/extensions/extension-b
+[extension-contract]: ./extension-contract.md
+[hmr-approaches]: ./hmr-approaches.md
+[host-app-vue]: ../src/host/src/App.vue
+[host-dir]: ../src/host
+[module-federation-docs]: https://module-federation.io/
+[readme]: ../README.md
+[registry]: ../src/host/src/extensions/useExtensionRegistry.js
+[theming]: ./theming.md

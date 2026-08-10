@@ -1,6 +1,6 @@
 # Theming across the federation boundary
 
-Back to the [README](../README.md).
+Back to the [README][readme].
 
 The host ships a light and a dark theme. Extensions restyle with it, and no
 extension imports anything from the host to make that happen.
@@ -19,7 +19,7 @@ Two mechanisms, deliberately not one.
 | Which theme the user picked | Pinia store, host only           | The host's own UI            |
 | What that theme looks like  | CSS custom properties on `:root` | Host **and** every extension |
 
-[`stores/theme.js`](../src/host/src/stores/theme.js) holds the preference and
+[`stores/theme.js`][theme-store] holds the preference and
 resolves it. A `watchEffect` mirrors the result onto the document:
 
 ```js
@@ -34,7 +34,7 @@ off it, and everything below inherits.
 **Extensions never read the theme store.** They cannot: extensions do not
 import host source, which is the architectural rule the rest of this project
 holds to. Nor should they want to. An extension that read `theme.resolved` in
-JavaScript to pick a colour would be reimplementing the cascade by hand, and
+JavaScript to pick a color would be reimplementing the cascade by hand, and
 would restyle a frame late, after the host had already repainted.
 
 ## The token contract
@@ -74,7 +74,7 @@ An extension consumes them and keeps its own brand accent:
 ```
 
 This is the same shape as the `summary` getter in
-[dynamic discovery](./dynamic-discovery.md#keeping-the-host-generic). The host
+[dynamic discovery][discovery-generic]. The host
 publishes a small, stable vocabulary; extensions agree to speak it; neither
 side hardcodes the other's specifics. Adding a third extension requires no
 theming work in the host.
@@ -92,11 +92,11 @@ nothing else. Absence means Auto, which keeps the default honest across
 devices.
 
 **Set the theme before first paint.** A theme resolved after mount produces a
-visible flash of the wrong one. [`index.html`](../src/host/index.html) carries a
-synchronous snippet in `<head>` that reads the stored value and stamps
-`data-theme` before the stylesheet is even requested. In the built output that
-script sits at byte 588, the stylesheet at 965, and `<body>` at 1701, so the
-first paint is already correct.
+visible flash of the wrong one. [`index.html`][host-index-html] carries a
+small synchronous script in `<head>` that reads the stored value and sets
+`data-theme` on the root element. Being synchronous and in the head, it runs
+while the document is still parsing, before the stylesheet is applied and
+before `<body>` exists, so the first paint already uses the right tokens.
 
 **Declare `color-scheme`.** Each token set sets `color-scheme: light` or
 `dark`. Native controls follow it without any styling: extension B's checkboxes
@@ -109,7 +109,7 @@ the standalone preview harness runs with no host and therefore no tokens.
 A remote that assumes the host's variables exist is a remote that cannot be
 developed on its own.
 
-**Respect reduced motion.** The colour transition on `body` is wrapped in
+**Respect reduced motion.** The color transition on `body` is wrapped in
 `@media (prefers-reduced-motion: no-preference)`.
 
 **Make the control a real control.** Three `<button>` elements in a
@@ -122,11 +122,11 @@ neither reachable by keyboard nor announced as a choice.
 - **Tokens are a public API.** Once extensions depend on `--color-surface`,
   renaming it breaks bundles you may not rebuild. Version the vocabulary as
   deliberately as the descriptor contract, and see
-  [the extension contract](./extension-contract.md).
+  [the extension contract][extension-contract].
 - **No enforcement.** Nothing stops an extension hardcoding `#fff`, and it will
   look broken in dark mode. The failure is visual and silent, which is the
   styling equivalent of the missing type checking described in
-  [Module Federation](./module-federation.md#costs).
+  [Module Federation][mf-costs].
 - **Resolution lives in JS, in two places.** The store and the pre-paint
   snippet both know how to resolve a preference. The alternative, a
   `prefers-color-scheme` media query in CSS, duplicates the _token sets_
@@ -150,3 +150,10 @@ getComputedStyle(document.querySelector(".extension-a")).backgroundColor;
 ```
 
 Both values come from `--color-surface`, which only the host defines.
+
+[discovery-generic]: ./dynamic-discovery.md#keeping-the-host-generic
+[extension-contract]: ./extension-contract.md
+[host-index-html]: ../src/host/index.html
+[mf-costs]: ./module-federation.md#costs
+[readme]: ../README.md
+[theme-store]: ../src/host/src/stores/theme.js

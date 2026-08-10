@@ -70,41 +70,19 @@ federation mechanisms above.
 
 ## Architecture
 
-![Runtime architecture](./docs/assets/architecture.svg)
+![Runtime architecture][diagram-architecture]
 
-```
-src/
-  backend/            .NET 10 Minimal API
-    Program.cs          static files + discovery API + SSE watcher
-    wwwroot/            assembled by scripts/build.sh
-      apps/extensions/    one folder per built extension
+| Path                          | What it is                                                        |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `src/backend/`                | .NET 10 Minimal API: static files, discovery API, SSE watcher     |
+| `src/host/`                   | The Vue 3 host, and the only federation consumer                  |
+| `src/extensions/extension-a/` | A remote. Also runs its own dev server, which is what enables HMR |
+| `src/extensions/extension-b/` | A remote. Built into `wwwroot` and discovered from there          |
+| `scripts/`                    | `build.sh` assembles everything; `dev.sh` runs the watch loop     |
+| `docs/`                       | The guides linked throughout this page                            |
 
-  host/               Vue 3 + Vite, the federation consumer
-    vite.config.js      declares extension-a as a remote in dev only, and
-                          aliases @declarative-extensions per build mode
-    src/
-      router.js           "/" plus any declarative routes, which is none in prod
-      components/
-        ExtensionBoundary.vue  contains a render-time throw from an extension
-      extensions/
-        declarativeExtensions.js       dev: extension A's route + metadata
-        declarativeExtensions.prod.js  prod: the inert stub that replaces it
-        loadExtensions.js              federation runtime calls
-        useExtensionRegistry.js        fetch, load, swap, SSE, route management
-      views/              HomeView, ExtensionUnavailableView
-
-  extensions/
-    extension-a/        also runs its own dev server, for HMR
-    extension-b/        built into wwwroot, discovered from there
-      src/
-        ExtensionApp.vue  the widget UI
-        store.js          Pinia store with a generic `summary` getter
-        extension.js      the exposed `./Extension` descriptor
-
-scripts/
-  build.sh            build all three, assemble wwwroot, build the backend
-  dev.sh              four watched processes, cleaned up together
-```
+[Build a federated app][build-guide] walks the individual
+files in the order you would write them, with a link to each one.
 
 Both extensions are independently buildable Vite projects. Neither imports from
 the other, and neither imports from host source. In production the host is
@@ -128,13 +106,13 @@ extension cannot take the shell down, but a duplicate Pinia store id is
 invisible to it. Those are the kinds of conventions a real platform has to
 standardize and enforce before publish.
 
-**→ [The contracts, the collision failure modes, and what to standardize](./docs/extension-contract.md)**
+**→ [The contracts, the collision failure modes, and what to standardize][extension-contract]**
 
 ---
 
 ## Two approaches to HMR
 
-![Declarative vs dynamic load paths](./docs/assets/load-paths.svg)
+![Declarative vs dynamic load paths][diagram-load-paths]
 
 **Declarative (Extension A, dev server only).** The host names the remote in
 `vite.config.js` and loads it through a literal `import('extension-a/Extension')`
@@ -156,13 +134,13 @@ would cost real flexibility. A production build declares no remotes, and a
 resolver alias swaps the declarative module for an inert stub, keeping the
 unresolvable import out of the bundle entirely.
 
-**→ [Full comparison, how the split is enforced, and how to choose](./docs/hmr-approaches.md)**
+**→ [Full comparison, how the split is enforced, and how to choose][hmr-approaches]**
 
 ---
 
 ## Dynamic discovery
 
-![Discovery and hot-swap sequence](./docs/assets/dynamic-discovery.svg)
+![Discovery and hot-swap sequence][diagram-discovery]
 
 `GET /api/extensions` scans `wwwroot/apps/extensions/*/` for any folder holding
 a `remoteEntry.js` and returns `[{ name, entryUrl, lastModifiedUnixMs }]`. The
@@ -176,7 +154,7 @@ ones are re-imported with a cache-busting `?t=<mtime>` and swapped in place.
 
 Adding an extension requires no backend code change and no host code change.
 
-**→ [The full mechanism, including the router-refresh gotcha](./docs/dynamic-discovery.md)**
+**→ [The full mechanism, including the router-refresh gotcha][dynamic-discovery]**
 
 ---
 
@@ -203,7 +181,7 @@ host source. They do not need to. Remotes render into the host's DOM, so the
 cascade reaches them for free. Pinia carries the user's _choice_; CSS carries
 the _presentation_. An iframe-based microfrontend gets neither.
 
-**→ [Token contract, no-flash loading, and the practices behind it](./docs/theming.md)**
+**→ [Token contract, no-flash loading, and the practices behind it][theming]**
 
 ---
 
@@ -229,13 +207,13 @@ want code reuse, use a package: a monorepo with a shared component library
 gives the same reuse with compile-time safety and none of the runtime
 negotiation.
 
-**→ [Concepts, benefits, costs, and when to use it](./docs/module-federation.md)**
+**→ [Concepts, benefits, costs, and when to use it][module-federation]**
 
 ---
 
 ## Scripts
 
-![dev.sh and build.sh](./docs/assets/dev-and-build.svg)
+![dev.sh and build.sh][diagram-scripts]
 
 ### `./scripts/build.sh`
 
@@ -253,7 +231,7 @@ the script.
 
 Starts four processes and stops all of them on Ctrl+C:
 
-| Process                              | Port | Behaviour                                         |
+| Process                              | Port | Behavior                                          |
 | ------------------------------------ | ---- | ------------------------------------------------- |
 | backend (`Development`)              | 5080 | serves the API and SSE; CORS allows `:5173`       |
 | `extension-a` (`vite dev`)           | 5174 | declared as a static remote here only; live HMR   |
@@ -284,20 +262,32 @@ Extension A's dev loading bypasses the backend entirely, which is why its own
 
 ## Documentation
 
-| Document                                                 | Contents                                                       |
-| -------------------------------------------------------- | -------------------------------------------------------------- |
-| [Module Federation](./docs/module-federation.md)         | Concepts, shared singletons, benefits, costs, when to use it   |
-| [Two approaches to HMR](./docs/hmr-approaches.md)        | Declarative vs dynamic in depth, gotchas, how to choose        |
-| [Dynamic discovery](./docs/dynamic-discovery.md)         | Manifest, SSE, reconcile, hot-swap, design trade-offs          |
-| [Theming](./docs/theming.md)                             | Light and dark themes, CSS tokens across the boundary          |
-| [The extension contract](./docs/extension-contract.md)   | What every extension must agree to, and how collisions fail    |
-| [Build a federated app](./docs/build-a-federated-app.md) | Step-by-step construction, adding a third extension, checklist |
+| Document                                     | Contents                                                       |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| [Module Federation][module-federation]       | Concepts, shared singletons, benefits, costs, when to use it   |
+| [Two approaches to HMR][hmr-approaches]      | Declarative vs dynamic in depth, gotchas, how to choose        |
+| [Dynamic discovery][dynamic-discovery]       | Manifest, SSE, reconcile, hot-swap, design trade-offs          |
+| [Theming][theming]                           | Light and dark themes, CSS tokens across the boundary          |
+| [The extension contract][extension-contract] | What every extension must agree to, and how collisions fail    |
+| [Build a federated app][build-guide]         | Step-by-step construction, adding a third extension, checklist |
 
 Diagrams in `docs/assets/` are SVGs with an embedded draw.io model. They render
-anywhere and can be opened directly in [app.diagrams.net](https://app.diagrams.net)
+anywhere and can be opened directly in [app.diagrams.net][diagrams-net]
 for editing.
 
 ## Stack
 
 Vue 3.5 · Vite 8 · vue-router 4 · Pinia 4 · `@module-federation/vite` 1.20 ·
 `@module-federation/runtime` 2.8 · .NET 10 Minimal API
+
+[build-guide]: ./docs/build-a-federated-app.md
+[diagram-architecture]: ./docs/assets/architecture.svg
+[diagram-discovery]: ./docs/assets/dynamic-discovery.svg
+[diagram-load-paths]: ./docs/assets/load-paths.svg
+[diagram-scripts]: ./docs/assets/dev-and-build.svg
+[diagrams-net]: https://app.diagrams.net
+[dynamic-discovery]: ./docs/dynamic-discovery.md
+[extension-contract]: ./docs/extension-contract.md
+[hmr-approaches]: ./docs/hmr-approaches.md
+[module-federation]: ./docs/module-federation.md
+[theming]: ./docs/theming.md
