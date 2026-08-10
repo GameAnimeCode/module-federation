@@ -5,10 +5,11 @@ Back to the [README][readme].
 The host ships a light and a dark theme. Extensions restyle with it, and no
 extension imports anything from the host to make that happen.
 
-That is the point of this feature. Shared state needs federation machinery, a
-`shared` singleton and a negotiated version. Shared **styling** needs none,
-because remotes render into the host's DOM and the CSS cascade already reaches
-them. This is a capability an iframe-based microfrontend gives up entirely.
+That is the point of this feature. Sharing state takes federation machinery:
+the package has to be declared a singleton in every build, and the runtime has
+to reconcile the copies. Sharing **styling** takes none of that, because
+remotes render into the host's DOM and the CSS cascade already reaches them.
+An iframe-based microfrontend gives up both.
 
 ## The split: Pinia owns the choice, CSS owns the presentation
 
@@ -31,11 +32,13 @@ watchEffect(() => {
 That single attribute is the whole transport. `style.css` keys its token sets
 off it, and everything below inherits.
 
-**Extensions never read the theme store.** They cannot: extensions do not
-import host source, which is the architectural rule the rest of this project
-holds to. Nor should they want to. An extension that read `theme.resolved` in
-JavaScript to pick a color would be reimplementing the cascade by hand, and
-would restyle a frame late, after the host had already repainted.
+**Extensions never read the theme store, and should not.** Strictly speaking
+one could: Pinia is a shared singleton, so an extension that imports only
+`pinia` can reach the host's stores through `getActivePinia()`. Nothing
+prevents it. But an extension that read `theme.resolved` in JavaScript to pick
+a color would be reimplementing the cascade by hand, coupling itself to a store
+it does not own, and restyling a frame late, after the host had already
+repainted. The cascade does the same job earlier and for free.
 
 ## The token contract
 
@@ -50,7 +53,7 @@ Tokens are semantic, named for their role rather than their value:
   --color-text: #1f2328;
   --color-text-muted: #59636e;
   --color-accent: #0969da;
-  /* sidebar and badge tokens omitted */
+  /* the sidebar and badge tokens follow the same pattern */
 }
 
 :root[data-theme="dark"] {
@@ -88,8 +91,8 @@ listener, with no reload. Choosing it clears the stored value rather than
 writing `"system"`, so the OS stays authoritative.
 
 **Persist only an explicit choice.** `localStorage` holds `light` or `dark` and
-nothing else. Absence means Auto, which keeps the default honest across
-devices.
+nothing else. Absence means Auto, so a user who never touched the control keeps
+following the OS even if it changes later.
 
 **Set the theme before first paint.** A theme resolved after mount produces a
 visible flash of the wrong one. [`index.html`][host-index-html] carries a
@@ -133,9 +136,11 @@ neither reachable by keyboard nor announced as a choice.
   instead, which is the larger and more error-prone thing to keep in sync. The
   app is a Vue SPA and renders nothing without JS, so a CSS-only fallback would
   buy nothing.
-- **`localStorage` is per-origin.** In dev the host runs on `:5173` and an
-  extension's standalone preview on `:5174`, so they do not share a stored
-  preference. This is only a demo concern.
+- **`localStorage` is per-origin, so the preference does not follow the user.**
+  It is per browser and per origin, not per account. A standalone extension
+  preview served from a different port is a different origin and starts from
+  Auto. Anywhere the same user has an identity, the preference belongs on the
+  account, not in `localStorage`.
 
 ## Verifying it
 
@@ -149,7 +154,15 @@ getComputedStyle(document.querySelector(".extension-a")).backgroundColor;
 // dark:  rgb(22, 27, 34)
 ```
 
-Both values come from `--color-surface`, which only the host defines.
+Read the dark value, not the light one. The light token happens to be the same
+`#ffffff` the extension declares as its fallback, so that reading is what you
+would see with no host at all and proves nothing. `rgb(22, 27, 34)` is
+`--color-surface` in the dark set, a value the extension's own stylesheet never
+mentions, so it can only have arrived through the cascade.
+
+A fallback that matches the light theme is convenient but makes light mode
+untestable this way. Picking a deliberately distinct fallback color would make
+both directions provable.
 
 [discovery-generic]: ./dynamic-discovery.md#keeping-the-host-generic
 [extension-contract]: ./extension-contract.md

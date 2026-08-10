@@ -6,24 +6,26 @@ Everything an extension must agree to, and what breaks when it does not.
 
 This project runs two extensions written by one author, so the conventions hold
 by inspection. A real platform has neither luxury. Extensions arrive from teams
-you do not control, built against a host you shipped months ago. Most of what
-follows is enforced by nothing at all, and the failures are quiet, which is why
-they are worth settling before the third extension exists rather than after.
+you do not control, built against a host you shipped months ago. Most of the
+conventions below are enforced by nothing at all, and they fail quietly when
+broken, so they are worth settling before the third extension exists rather
+than after.
 
 ## The five contracts
 
-|                  | Carried by                                                             | Checked by                                                                  |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Module**       | `./Extension` exposing `{ id, label, routePath, component, useStore }` | Nothing                                                                     |
-| **Identity**     | Folder name, federation `name`, `id`, `routePath`, store id            | The host rejects a duplicate `id` or `routePath`; store ids are not checked |
-| **State**        | A Pinia store exposing a `summary` getter                              | Nothing                                                                     |
-| **Styling**      | The host's `--color-*` custom properties                               | Nothing                                                                     |
-| **Dependencies** | The `shared` singleton set, and the versions behind it                 | Nothing                                                                     |
+|                  | Carried by                                                                                | Checked by                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Module**       | `./Extension` exposing `{ id, label, routePath, component }`, plus an optional `useStore` | Nothing                                                                     |
+| **Identity**     | Folder name, federation `name`, `id`, `routePath`, store id                               | The host rejects a duplicate `id` or `routePath`; store ids are not checked |
+| **State**        | If the extension has state, a Pinia store exposing a `summary` getter                     | Nothing                                                                     |
+| **Styling**      | The host's `--color-*` custom properties                                                  | Nothing                                                                     |
+| **Dependencies** | The `shared` singleton set, and the versions behind it                                    | Nothing                                                                     |
 
 Module Federation checks none of it. It resolves modules; it does not
 type-check them, validate their shape, or notice two of them claiming the same
-name. This host adds a single check of its own, on route identity. Everything
-else holds by convention, which works until it does not.
+name. This host adds checks of its own on route identity, covering both
+`id` and `routePath`. Everything else holds by convention, which works until it
+does not.
 
 ## Identity, and how collisions actually fail
 
@@ -42,8 +44,8 @@ The backend discovers extensions by folder name
 ([dynamic discovery][dynamic-discovery]), so the folder is the de facto
 primary key. Everything else is convention.
 
-Collisions do not announce themselves. Verified against this repo's own
-`vue-router` 4.6.4 and `pinia` 4.0.2:
+Collisions do not announce themselves. Each of the three below was reproduced
+against the versions of `vue-router` 4 and `pinia` 4 this project uses:
 
 **Duplicate Pinia store id.** `defineStore` registers nothing by itself; it
 returns a `useStore` function. The store is created on the _first call_ to any
@@ -115,9 +117,11 @@ equally valid descriptors.
 **Store ids are still unguarded.** A store id lives inside the extension's
 `store.js`; the host only receives a `useStore` function. It could read
 `useStore().$id` after the fact, but by then a colliding call has already
-returned the incumbent's store. Verified with three extensions all declaring
-`defineStore("extension-b")`: toggling one task moved every summary in the
-sidebar at once, and no guard fired. Namespacing store ids (`acme.billing`
+returned the incumbent's store. Verified by building two throwaway extensions
+that copied extension B's store id, giving three loaded extensions all
+declaring `defineStore("extension-b")`: they silently shared one store, so
+toggling a single item moved all three sidebar summaries at once, and no guard
+fired. Namespacing store ids (`acme.billing`
 rather than `billing`) costs nothing and removes the whole class. Real
 prevention belongs in a registry that rejects duplicates before a bundle
 ships.
@@ -131,18 +135,23 @@ const store = ext.useStore();
 return { id: ext.id, label: ext.label, summary: store.summary };
 ```
 
-`summary` returns a plain string. That is the entire read surface, which is why
-adding an extension with completely different state needs no host change (see
-[keeping the host generic][discovery-generic]).
+`summary` returns a plain string. It lives on the store rather than on the
+descriptor, and it is the host's entire read surface into extension state,
+which is why adding an extension with completely different state needs no host
+change (see [keeping the host generic][discovery-generic]). An extension with
+no state can omit `useStore` altogether, and the host leaves it out of the
+status panel.
 
 Standardize three things a platform will otherwise get wrong:
 
 - **Who calls `createPinia()`.** Exactly one place, the host. An extension that
   creates its own gets an instance nothing else can see.
-- **Which packages are singletons.** `vue`, `vue-router`, and `pinia` must be
-  declared `singleton: true` in _every_ config. A remote that omits `pinia`
-  bundles its own copy, and `useStore()` fails with "no active Pinia" because
-  the injection `Symbol` differs (see
+- **Which packages are singletons.** Any package whose module-level state
+  crosses the boundary has to be declared `singleton: true` in every config
+  that uses it. The host declares `vue`, `vue-router`, and `pinia`; the
+  extensions declare `vue` and `pinia`, and omit `vue-router` because they
+  never import it. Getting this wrong is quiet: a remote that omits `pinia`
+  bundles its own copy and its stores detach from the host's (see
   [why the shared singleton matters][mf-singletons]).
 - **What the read surface is.** If `summary` grows into `summary`, `status`,
   and `badgeCount`, that is a versioned interface now. Treat it like one.

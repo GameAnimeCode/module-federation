@@ -79,8 +79,10 @@ Three things to get right:
 - **`name`** is the remote's identity in the federation runtime. For a
   declarative remote it must match the host's `remotes` key.
 - **`shared`** must list every package whose module-level state crosses the
-  boundary. Missing `pinia` here means the remote bundles its own copy and
-  `useStore()` fails with _"no active Pinia"_.
+  boundary. Omitting one means the remote bundles its own copy and detaches from
+  the host's, which is the failure explained in
+  [why the shared singleton matters][mf-singletons]. Note this remote does not
+  declare `vue-router`, because it never imports it.
 - **`exposes`** points at the descriptor module, not the `.vue` file.
 
 The remote's own `main.js` and `App.vue`
@@ -106,9 +108,11 @@ export const useExtensionAStore = defineStore("extension-a", {
 });
 ```
 
-The `summary` getter is the second half of the descriptor contract. It lets the
-host render a status line for any extension without knowing what that extension
-stores. The store id must be unique across all extensions.
+The `summary` getter is not part of the descriptor; it lives on the store. It
+is the companion convention that lets the host render a status line for any
+extension without knowing what that extension stores. The store id must be
+unique across all extensions, and nothing enforces that (see
+[the extension contract][extension-contract]).
 
 ## Step 3: the host
 
@@ -128,9 +132,13 @@ The `await` matters. Dynamic routes are added inside
 deep link to an extension resolves against an incomplete route table and lands
 on the catch-all.
 
-Host federation config, from [`host/vite.config.js`][host-vite-config]:
+Host federation config, from [`host/vite.config.js`][host-vite-config]. Note
+the function form of `defineConfig`, which is what gives you `command` in
+step 4:
 
 ```js
+export default defineConfig(({ command }) => ({
+  // ...
 federation({
   name: "host",
   remotes: {}, // empty in production, see step 4
@@ -228,8 +236,8 @@ const remoteModule = await loadRemote(`${manifestEntry.name}/Extension`);
 return remoteModule.default ?? remoteModule;
 ```
 
-`type: 'module'` is required; the runtime default of `'var'` treats
-`remoteEntry.js` as a classic script and throws.
+`type: 'module'` is required; the default of `'var'` throws against an ES
+module. See [dynamic discovery][dynamic-discovery].
 
 Where the URL comes from, how changes are detected, and how a rebuilt remote is
 swapped in are covered in [dynamic discovery][dynamic-discovery].
@@ -260,7 +268,8 @@ In production, [`build.sh`][build-sh] copies everything into
 `wwwroot`, so host, API, and bundles share one origin and CORS is never
 exercised.
 
-In dev they do not. The host runs on `:5173`, the backend on `:5080`:
+In dev they do not, and this is the one place the split matters. The host runs
+on `:5173`, the backend on `:5080`:
 
 - [`host/.env.development`][host-env] sets
   `VITE_API_BASE_URL=http://localhost:5080`, read by
@@ -353,6 +362,7 @@ silent. See [the extension contract][extension-contract].
 [host-router]: ../src/host/src/router.js
 [host-vite-config]: ../src/host/vite.config.js
 [load-extensions]: ../src/host/src/extensions/loadExtensions.js
+[mf-singletons]: ./module-federation.md#why-the-shared-singleton-matters
 [program-cs]: ../src/backend/Program.cs
 [readme]: ../README.md
 [registry]: ../src/host/src/extensions/useExtensionRegistry.js

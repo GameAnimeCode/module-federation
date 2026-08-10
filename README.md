@@ -8,18 +8,18 @@ runtime, served by a .NET 10 Minimal API.
 discovered from a backend API and loaded at runtime, so a new extension is a
 deployment step, not a code change.
 
-The comparison the project exists to show is a **development-time** one. Vite's
-federation plugin can patch a remote's code live, with no reload, but only if
-the host declares that remote at dev-server startup. Extension A is wired that
+The comparison the project exists to show is a **development-time** one. The
+Vite federation plugin can hot-swap a remote's code live, with no page reload,
+which is hot module replacement (HMR) across a federation boundary. It only
+works if the host declares that remote at dev-server startup. Extension A is wired that
 way in the dev server, and only there, to demonstrate the difference:
 
-|                              | Extension A                           | Extension B                           |
-| ---------------------------- | ------------------------------------- | ------------------------------------- |
-| **In production**            | Discovered at runtime                 | Discovered at runtime                 |
-| **In the dev server**        | Declarative (static remote)           | Dynamic (runtime discovery)           |
-| **Edit + save during dev**   | Patched in place, no reload           | Rebuild, then automatic swap          |
-| **Latency**                  | Instant                               | A few seconds                         |
-| **Adding another one needs** | Nothing, drop a built folder in place | Nothing, drop a built folder in place |
+|                            | Extension A                 | Extension B                  |
+| -------------------------- | --------------------------- | ---------------------------- |
+| **In production**          | Discovered at runtime       | Discovered at runtime        |
+| **In the dev server**      | Declarative (static remote) | Dynamic (runtime discovery)  |
+| **Edit + save during dev** | Patched in place, no reload | Rebuild, then automatic swap |
+| **Latency**                | Instant                     | A few seconds                |
 
 Two things cross the federation boundary, by two different routes. **State**
 travels through shared singletons: the extensions use the host's Vue,
@@ -57,9 +57,11 @@ a few seconds later. Ctrl+C stops everything.
 
 ### Run one extension in isolation
 
+Either one, from the repo root:
+
 ```bash
-cd src/extensions/extension-a && npm run dev   # http://localhost:5174
-cd src/extensions/extension-b && npm run dev   # http://localhost:5175
+(cd src/extensions/extension-a && npm run dev)   # http://localhost:5174
+(cd src/extensions/extension-b && npm run dev)   # http://localhost:5175
 ```
 
 Each renders its widget through a standalone preview harness, with neither the
@@ -100,11 +102,12 @@ Every extension exposes one module, `./Extension`, returning the same shape:
 That is the entire interface. It is what lets the host build a sidebar entry, a
 route, and a status line for an extension it knows nothing else about.
 
-Nothing validates that shape. The host rejects an extension whose `id` or
-`routePath` is already taken, and contains a render-time throw so one bad
-extension cannot take the shell down, but a duplicate Pinia store id is
-invisible to it. Those are the kinds of conventions a real platform has to
-standardize and enforce before publish.
+Nothing checks that an extension actually returns that shape. The host does
+check identity: it refuses an extension whose `id` or `routePath` is already
+taken, and it catches a throw from an extension's own rendering so one bad
+extension cannot bring down the shell. A duplicate Pinia store id slips past
+both. Those are the kinds of conventions a real platform has to standardize and
+enforce before publish.
 
 **→ [The contracts, the collision failure modes, and what to standardize][extension-contract]**
 
@@ -117,9 +120,10 @@ standardize and enforce before publish.
 **Declarative (Extension A, dev server only).** The host names the remote in
 `vite.config.js` and loads it through a literal `import('extension-a/Extension')`
 call site. The plugin's `dev.remoteHmr` option rewrites that call site and
-patches the module in place on change. Verified end to end: with the click
-counter at 3, editing the mounted component's heading updated the DOM with the
-counter still at 3, zero navigations, and no console errors.
+patches the module in place on change. Verified rather than assumed: editing
+the heading of a mounted extension updated the page while that extension's own
+click counter kept its value, with no navigation. A reload would have reset the
+counter, so the module really was patched in place.
 
 **Dynamic (everything, always).** The extension is discovered from the backend
 at runtime. On edit, `vite build --watch` rewrites the bundle, the backend's

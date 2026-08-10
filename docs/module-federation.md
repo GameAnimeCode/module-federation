@@ -11,7 +11,7 @@ and both have a cost.
 but every team ships on the same release train. A one-line change in a rarely
 used screen means rebuilding and redeploying the entire application.
 
-**Many bundles, one iframe or one page reload per team.** Teams deploy
+**Many bundles, isolated behind an iframe or a full page load.** Teams deploy
 independently, but the boundary is a hard one: separate DOM, separate
 JavaScript realm, no shared component state, and duplicated framework code in
 every bundle.
@@ -29,15 +29,32 @@ stay separate all the way through deployment and only meet in the browser.
 | **Remote** (producer) | A separately built app that publishes modules            | [`extension-a`][ext-a-dir], [`extension-b`][ext-b-dir] |
 | **Shared**            | Packages the host and remotes agree to load exactly once | `vue`, `vue-router`, `pinia`                           |
 
-Each remote publishes a small manifest file, `remoteEntry.js`, describing what
-it exposes and which shared dependencies it expects. The host fetches that
-file, negotiates shared versions with the runtime, then imports the exposed
-module like any other ES module.
+Each remote publishes an entry file, `remoteEntry.js`, describing what it
+exposes and which shared dependencies it expects. The host fetches that file,
+negotiates shared versions with the runtime, then imports the exposed module
+like any other ES module. This file is sometimes called a container; this
+documentation calls it the entry file, and reserves "manifest" for the
+backend's list of available extensions (see [dynamic discovery][dynamic-discovery]).
 
 The negotiation step is what separates Module Federation from "load a script
 tag and hope." If the host already has `vue` loaded and the remote declares
 `vue` as a singleton, the remote is handed the host's instance instead of
 loading its own.
+
+### Two packages, two jobs
+
+Module Federation ships as more than one package, and mixing them up is a
+common source of confusion:
+
+| Package                      | Runs                         | Owns                                                                                                                                    |
+| ---------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `@module-federation/vite`    | Build time, as a Vite plugin | The `remotes`, `exposes`, and `shared` config, the `remoteEntry.js` output, rewriting literal `import()` call sites, and dev-server HMR |
+| `@module-federation/runtime` | In the browser               | `registerRemotes()` and `loadRemote()`, for remotes decided while the app is running                                                    |
+
+A host that only loads remotes it declared at build time needs the plugin
+alone. Adding remotes the build never knew about, which is what
+[dynamic discovery][dynamic-discovery] does, is what the runtime package is
+for. This project uses both.
 
 ## Why the shared singleton matters
 
@@ -129,9 +146,9 @@ These are real, and they are the reason Module Federation is not a default.
 
 - **Version skew escapes the build entirely.** If a remote is built against Vue
   3.5 APIs and the host supplies 3.3, nothing catches it until the component
-  renders in a user's browser. Declaring a package a singleton is what makes
-  this possible, and it leaves the version contract implicit, so it can break
-  without anything failing loudly.
+  renders in a user's browser. Sharing one copy is what allows the mismatch to
+  happen at all, and because no build ever sees both sides, the version
+  agreement stays implicit and can break without anything failing loudly.
 - **No cross-bundle type checking.** The host imports `extension-a/Extension`
   and gets whatever that build happens to export. The descriptor contract in
   this repo (`{ id, label, routePath, component, useStore }`) is enforced by
@@ -181,8 +198,8 @@ the actual requirement. If you only want code reuse, use a package.
 
 ## Choosing a Vite plugin
 
-Two plugins implement Module Federation for Vite, and the choice is not close
-at the time of writing. This matters more than most tooling decisions, because
+Two plugins implement Module Federation for Vite, and as of August 2026 the
+choice is not close. This matters more than most tooling decisions, because
 the plugin dictates what your dev loop can do (see
 [HMR approaches][hmr-approaches]).
 

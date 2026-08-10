@@ -20,21 +20,23 @@ remotes at all and discovers every extension at runtime, Extension A included.
 | Edit + save            | Patched in place, no reload    | Rebuild, then automatic swap  |
 | Latency                | Instant                        | A few seconds                 |
 | Adding another one     | Host code change               | Drop a built folder in place  |
-| Load failure surfaces  | Dev server startup             | Runtime, caught per extension |
+| Load failure surfaces  | Build or dev-server start      | Runtime, caught per extension |
 
 Read the left column as a development tool, like a source map: valuable while
 you work, absent from what you ship.
 
 ## Why split them this way
 
-Automatic HMR patching requires the host to know its remotes at dev-server
-startup, so `@module-federation/vite`'s import resolver can rewrite the call
-site. Without a declared remote there is nothing to rewrite against, and the
+Automatic HMR patching is a build-plugin feature, so it requires the host to
+know its remotes at dev-server startup: that is the only way
+`@module-federation/vite` can find and rewrite the `import()` call site. The
+separate `@module-federation/runtime` package, which loads remotes decided
+while the app is running, has no such hook (see
+[two packages, two jobs][mf-two-packages]). Without a declared remote there is nothing to rewrite against, and the
 literal specifier simply does not resolve. Forcing the declarative module into
 a production build reproduces it:
 
 ```
-[vite]: Rolldown failed to resolve import "extension-a/Extension"
 from "/workspace/src/host/src/extensions/declarativeExtensions.js".
 ```
 
@@ -94,8 +96,8 @@ export const declarativeRoutes = [];
 export const declarativeExtensionsMetadata = Promise.resolve([]);
 ```
 
-Three consumers import from `@declarative-extensions` and neither knows nor
-cares which one they got: [`router.js`][host-router] spreads
+Three consumers import from `@declarative-extensions`, and none of them knows
+or cares which version it got: [`router.js`][host-router] spreads
 `declarativeRoutes` into its route table,
 [`App.vue`][host-app-vue] merges the metadata into its sidebar list,
 and [`useExtensionRegistry.js`][registry]
@@ -127,17 +129,12 @@ runtime so remote-loaded copies cannot overwrite it, and it clears the
 federation `moduleCache` on `vite:beforeUpdate` so later `loadRemote()` calls
 return the freshly patched module.
 
-Verified end to end rather than inferred. With the mounted component's click
-counter at 3, editing its heading text in
-`extension-a/src/ExtensionApp.vue` produced:
-
-- the heading updated to the new text
-- the counter still reading 3
-- zero top-level navigations
-- no console errors
-
-A reload would have reset that counter to 0. It survived, so the module was
-genuinely patched in place.
+Verified rather than inferred. Extension A renders a click counter, so it holds
+state you can watch. Clicking it a few times and then editing the component's
+heading updated the heading immediately, with the count unchanged, no page
+navigation, and no console errors. A reload would have reset that count to
+zero, so the module really was patched in place rather than the page quietly
+reloading.
 
 ### The literal-import constraint
 
@@ -152,7 +149,7 @@ statically declared remote is not registered under its plain name, so the
 lookup misses and the call fails with:
 
 ```
-[ Federation Runtime ]: Failed to locate remote (#RUNTIME-004)
+
 ```
 
 The practical rule: for a declared remote, reach it with a literal `import()`
@@ -171,18 +168,16 @@ backend's `FileSystemWatcher` pushes an SSE event, and the host re-imports the
 remote and swaps the mounted component. A few seconds, but no manual refresh.
 
 Because state lives in Pinia rather than in the component, the remount is
-invisible in practice. Verified the same way as above: toggling a task, editing
-the heading, then confirming the new heading appeared with the checkbox state
-intact and zero navigations.
+invisible in practice. Verified the same way: Extension B renders a task list,
+so ticking an item, then editing the component's heading, showed the new
+heading with the tick still in place and no navigation. The component was
+rebuilt and replaced; its state was not.
 
 ### Two gotchas worth knowing
 
-**`registerRemotes()` defaults to `type: 'var'`**, meaning it loads
-`remoteEntry.js` as a classic script exposing a global. Every `remoteEntry.js`
-these Vite builds produce is a real ES module, so the default throws
-`Cannot use import statement outside a module`. Passing `type: 'module'`
-explicitly is required. See
-[`loadExtensions.js`][load-extensions].
+**`registerRemotes()` needs an explicit `type: 'module'`.** The default of
+`'var'` throws against the ES modules Vite produces. Covered in
+[dynamic discovery][dynamic-discovery].
 
 **Re-registering an already-registered remote logs a warning that is benign:**
 
@@ -216,6 +211,7 @@ The one combination unavailable here is declarative HMR on a host that has no
 build-time knowledge of its remotes, for the reason in
 [Why split them this way](#why-split-them-this-way).
 
+[ Federation Runtime ]: Failed to locate remote (#RUNTIME-004)
 [declarative-dev]: ../src/host/src/extensions/declarativeExtensions.js
 [declarative-prod]: ../src/host/src/extensions/declarativeExtensions.prod.js
 [diagram-load-paths]: ./assets/load-paths.svg
@@ -223,6 +219,7 @@ build-time knowledge of its remotes, for the reason in
 [host-app-vue]: ../src/host/src/App.vue
 [host-router]: ../src/host/src/router.js
 [host-vite-config]: ../src/host/vite.config.js
-[load-extensions]: ../src/host/src/extensions/loadExtensions.js
+[mf-two-packages]: ./module-federation.md#two-packages-two-jobs
 [readme]: ../README.md
 [registry]: ../src/host/src/extensions/useExtensionRegistry.js
+[vite]: Rolldown failed to resolve import "extension-a/Extension"

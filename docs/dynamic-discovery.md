@@ -50,17 +50,22 @@ const remoteModule = await loadRemote(`${manifestEntry.name}/Extension`);
 return remoteModule.default ?? remoteModule;
 ```
 
-`type: 'module'` is required. The runtime's default is `'var'`, which loads
-`remoteEntry.js` as a classic script and throws
-`Cannot use import statement outside a module` against a real ES module.
+`type: 'module'` is required, and this is the single most common way to get a
+runtime remote wrong. The default is `'var'`, which loads `remoteEntry.js` as a
+classic script expecting it to assign a global. Every `remoteEntry.js` a Vite
+build produces is a real ES module, so the default throws
+`Cannot use import statement outside a module`.
 
 ## 3. The host installs a route
 
 Each loaded module returns the descriptor contract every extension exposes:
 
 ```
-{ id, label, routePath, component, useStore }
+{ id, label, routePath, component, useStore? }
 ```
+
+`useStore` is optional. An extension without state omits it, and the host
+leaves that extension out of the status panel.
 
 The host adds a sidebar entry and a route, without knowing anything specific
 about this extension:
@@ -79,10 +84,12 @@ can resolve against an incomplete route table and land on the catch-all.
 
 ## 4. The backend pushes changes
 
-`GET /api/extensions/stream` is a Server-Sent Events endpoint. The backend
-watches `wwwroot/apps/extensions` with a `FileSystemWatcher`, debounced 400 ms
-so a multi-file rebuild fires one event, and emits `extensions-changed` on any
-add, remove, rename, or rewrite. A comment-only keep-alive goes out every 15
+`GET /api/extensions/stream` is a Server-Sent Events (SSE) endpoint, and it
+runs in production as well as in dev: the watcher is not gated on environment,
+so deploying a new extension folder to a running server is picked up the same
+way a local rebuild is. The backend watches `wwwroot/apps/extensions` with a
+`FileSystemWatcher`, debounced 400 ms so a multi-file rebuild fires one event,
+and emits `extensions-changed` on any add, remove, rename, or rewrite. A comment-only keep-alive goes out every 15
 seconds so idle connections are not dropped by intermediate proxies.
 
 The host's `EventSource` listener re-runs the same reconcile step used at
@@ -167,9 +174,11 @@ const extensionStates = computed(() =>
 ```
 
 A third dynamic extension with entirely different state needs no host change,
-as long as its store exposes a `summary` getter too, and as long as its `id`,
-`routePath`, and store id collide with nothing already loaded. Nothing checks
-that second part; see [the extension contract][extension-contract].
+as long as its store exposes a `summary` getter and its identity collides with
+nothing already loaded. The host checks two thirds of that: it rejects a
+duplicate `id` or `routePath`, but a duplicate Pinia store id passes unnoticed
+and silently merges the two extensions' state. See
+[the extension contract][extension-contract].
 
 ## Trade-offs of this design
 
