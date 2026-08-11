@@ -37,7 +37,7 @@ literal specifier simply does not resolve. Forcing the declarative module into
 a production build reproduces it:
 
 ```
-from "/workspace/src/host/src/extensions/declarativeExtensions.js".
+from "src/host/src/extensions/declarativeExtensions.js".
 ```
 
 So the fast inner loop and a fully runtime-driven host cannot both be had from
